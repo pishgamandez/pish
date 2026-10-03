@@ -30,7 +30,7 @@ export default function App() {
           {/* Zone 1: Single text wordmark */}
           <a href="#" className="text-xl font-bold tracking-tight text-stone-900 flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-stone-900"></span>
-            استودیو وب
+            پیشگامان
           </a>
 
           {/* Zone 2: Navigation links */}
@@ -415,7 +415,7 @@ export default function App() {
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-stone-500">
           <div className="flex items-center gap-2 font-bold text-stone-900">
             <span className="w-2 h-2 rounded-full bg-stone-900"></span>
-            استودیو وب
+            پیشگامان
           </div>
           <div className="flex items-center gap-6">
             <span>طراحی اختصاصی و ساده</span>
