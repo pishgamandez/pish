@@ -1,0 +1,6 @@
+{
+  "name": "نمونه وب‌سایت ساده و مدرن",
+  "description": "نمونه وب‌سایت تست سریع، ساده و بهینه‌سازی شده.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
