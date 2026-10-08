@@ -3,7 +3,7 @@ import { Product, ConsultationInquiry, DosageRate } from '../types';
 import { 
   X, Plus, Trash2, Edit3, Save, Check, RefreshCw, Upload, Image as ImageIcon, 
   MessageSquare, Shield, Lock, KeyRound, AlertTriangle, Eye, EyeOff, 
-  CheckCircle2, Sparkles, Maximize2, FileCheck, AlertCircle
+  CheckCircle2, Sparkles, Maximize2, FileCheck, AlertCircle, Download
 } from 'lucide-react';
 import { companyInfo } from '../data/company';
 
@@ -189,6 +189,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updated)
       }).catch(() => {});
+    }
+  };
+
+  const handleExportProductsJSON = () => {
+    try {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(products, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `pishgaman_products_${new Date().toISOString().slice(0, 10)}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      setSaveToast('فایل JSON محصولات با موفقیت دانلود شد.');
+      setTimeout(() => setSaveToast(null), 3000);
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -467,6 +483,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 >
                   <Plus className="w-4 h-4" />
                   <span>افزودن محصول جدید</span>
+                </button>
+
+                <button
+                  onClick={handleExportProductsJSON}
+                  className="px-3 py-2 text-[11px] text-stone-700 hover:text-stone-900 border border-stone-300 rounded-xl flex items-center gap-1 cursor-pointer hover:bg-stone-100"
+                  title="دانلود و خروجی گرفتن از فایل محصولات برای گیت‌هاب و بک‌آپ"
+                >
+                  <Download className="w-3.5 h-3.5 text-stone-600" />
+                  <span>خروجی JSON</span>
                 </button>
 
                 <button
