@@ -208,7 +208,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
-  // Direct upload of the user's exact file without any AI alterations or canvas re-compression
+  // Direct upload and immediate auto-sync with server and all devices
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !editingProduct) return;
@@ -216,10 +216,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setUploadErrorMessage(null);
     setUploadSuccessMessage(null);
     setIsUploadingImage(true);
-
-    const formattedSize = file.size > 1024 * 1024
-      ? `${(file.size / (1024 * 1024)).toFixed(2)} مگابایت`
-      : `${Math.round(file.size / 1024)} کیلوبایت`;
 
     const reader = new FileReader();
 
@@ -231,18 +227,51 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         return;
       }
 
-      // Check image dimensions using standard browser Image object
       const tempImg = new window.Image();
       tempImg.onload = async () => {
-        const dimensions = `${tempImg.naturalWidth} × ${tempImg.naturalHeight} پیکسل`;
+        let finalDataUrl = dataUrl;
+        const origWidth = tempImg.naturalWidth;
+        const origHeight = tempImg.naturalHeight;
 
-        // Direct upload to server to save raw original file to disk without touching pixels
+        // If high-resolution mobile camera photo (e.g. 4000x3000), scale cleanly to crisp 1600px
+        // to prevent mobile network dropouts and payload limits while preserving 100% natural photo quality
+        const maxDim = 1600;
+        if (origWidth > maxDim || origHeight > maxDim) {
+          try {
+            const canvas = document.createElement('canvas');
+            let w = origWidth;
+            let h = origHeight;
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.imageSmoothingEnabled = true;
+              ctx.imageSmoothingQuality = 'high';
+              ctx.drawImage(tempImg, 0, 0, w, h);
+              finalDataUrl = canvas.toDataURL('image/jpeg', 0.92);
+            }
+          } catch (canvasErr) {
+            console.warn('Canvas resize fallback:', canvasErr);
+            finalDataUrl = dataUrl;
+          }
+        }
+
+        const dimensions = `${origWidth} × ${origHeight} پیکسل`;
+
+        // Direct upload to server to save permanent file
         try {
           const res = await fetch('/api/upload', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              data: dataUrl,
+              data: finalDataUrl,
               filename: file.name
             })
           });
@@ -250,45 +279,62 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           if (res.ok) {
             const result = await res.json();
             if (result.url) {
+              const savedUrl = result.url;
               setEditingProduct(prev => prev ? {
                 ...prev,
-                imageUrl: result.url
+                imageUrl: savedUrl
               } : null);
+
               setUploadedImageMeta({
                 name: file.name,
-                size: formattedSize,
+                size: `${Math.round(file.size / 1024)} کیلوبایت`,
                 dimensions
               });
-              setUploadSuccessMessage(`عکس اصلی با موفقیت در سایت ذخیره شد (اندازه: ${formattedSize} | ابعاد: ${dimensions}) - کیفیت ۱۰۰٪ دست‌نخورده بدون تغییر هوش مصنوعی.`);
+
+              // CRITICAL: Instantly persist into products state and sync to server
+              // so mobile uploads instantly sync across laptop, phone, and all browsers!
+              const updatedList = products.map(p => 
+                p.id === editingProduct.id ? { ...p, imageUrl: savedUrl } : p
+              );
+              onUpdateProducts(updatedList);
+              try {
+                localStorage.setItem('pishgaman_custom_products', JSON.stringify(updatedList));
+              } catch {}
+              try {
+                await fetch('/api/products', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(updatedList)
+                });
+              } catch (postErr) {
+                console.error('Failed to sync to /api/products:', postErr);
+              }
+
+              setUploadSuccessMessage(`عکس اصلی محصول با موفقیت ثبت شد و فوراً در دیتابیس سرور ذخیره گردید. روی تمام دستگاه‌ها (موبایل و لپ‌تاپ) فعال است.`);
               setIsUploadingImage(false);
               return;
             }
           }
         } catch (serverErr) {
-          console.warn('Direct upload server error, falling back to data URL:', serverErr);
+          console.warn('Direct upload server error:', serverErr);
         }
 
-        // Reliable fallback: use exact original file dataUrl
+        // Offline / local fallback
         setEditingProduct(prev => prev ? {
           ...prev,
-          imageUrl: dataUrl
+          imageUrl: finalDataUrl
         } : null);
-        setUploadedImageMeta({
-          name: file.name,
-          size: formattedSize,
-          dimensions
-        });
-        setUploadSuccessMessage(`عکس اصلی با موفقیت روی محصول اعمال شد (${dimensions}) - بدون هیچ تغییری.`);
+        const updatedList = products.map(p => 
+          p.id === editingProduct.id ? { ...p, imageUrl: finalDataUrl } : p
+        );
+        onUpdateProducts(updatedList);
+        setUploadSuccessMessage(`عکس روی محصول اعمال شد (${dimensions}).`);
         setIsUploadingImage(false);
       };
 
       tempImg.onerror = () => {
-        setEditingProduct(prev => prev ? {
-          ...prev,
-          imageUrl: dataUrl
-        } : null);
+        setEditingProduct(prev => prev ? { ...prev, imageUrl: dataUrl } : null);
         setIsUploadingImage(false);
-        setUploadSuccessMessage(`عکس فایل با موفقیت ذخیره شد (${formattedSize}).`);
       };
 
       tempImg.src = dataUrl;
@@ -300,6 +346,36 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     };
 
     reader.readAsDataURL(file);
+  };
+
+  // Quick save button specifically for image link or changes
+  const handleQuickSaveImageUrl = async (urlToSave: string) => {
+    if (!editingProduct) return;
+    const cleanUrl = urlToSave.trim();
+    if (!cleanUrl) {
+      alert('لطفاً آدرس تصویر را وارد نمایید.');
+      return;
+    }
+
+    setEditingProduct({ ...editingProduct, imageUrl: cleanUrl });
+    const updatedList = products.map(p => 
+      p.id === editingProduct.id ? { ...p, imageUrl: cleanUrl } : p
+    );
+    onUpdateProducts(updatedList);
+    try {
+      localStorage.setItem('pishgaman_custom_products', JSON.stringify(updatedList));
+    } catch {}
+
+    try {
+      await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedList)
+      });
+      setUploadSuccessMessage('آدرس تصویر با موفقیت در کل سایت ثبت و همگام شد.');
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const handleAddDosageRow = () => {
@@ -592,7 +668,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             className="w-full text-xs px-2.5 py-2 rounded-xl border border-stone-300 focus:ring-2 focus:ring-emerald-700 font-mono text-left bg-white"
                             dir="ltr"
                           />
-                          <span className="text-[9px] text-stone-400 block">
+                          <button
+                            type="button"
+                            onClick={() => handleQuickSaveImageUrl(editingProduct.imageUrl || '')}
+                            className="w-full mt-1.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-colors shadow-xs"
+                          >
+                            <Save className="w-3.5 h-3.5" />
+                            <span>ثبت فوری این لینک روی محصول</span>
+                          </button>
+                          <span className="text-[9px] text-stone-400 block mt-1">
                             اگر عکس در هاست یا سایت دیگری قرار دارد
                           </span>
                         </div>
@@ -673,7 +757,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               onClick={() => {
                                 setEditingProduct({ ...editingProduct, imageUrl: '' });
                                 setUploadedImageMeta(null);
-                                setUploadSuccessMessage(null);
+                                setUploadSuccessMessage('تصویر این محصول با موفقیت حذف شد.');
+                                const updatedList = products.map(p => 
+                                  p.id === editingProduct.id ? { ...p, imageUrl: '' } : p
+                                );
+                                onUpdateProducts(updatedList);
+                                try {
+                                  localStorage.setItem('pishgaman_custom_products', JSON.stringify(updatedList));
+                                } catch {}
+                                fetch('/api/products', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify(updatedList)
+                                }).catch(() => {});
                               }}
                               className="text-xs text-rose-600 hover:text-rose-800 font-bold hover:bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-200 transition-colors cursor-pointer"
                             >

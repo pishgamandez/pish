@@ -39,7 +39,8 @@
         "method": "همراه آب آبیاری",
         "rate": "۳-۵ کیلوگرم در هکتار"
       }
-    ]
+    ],
+    "imageUrl": "/assets/images/challenger_pack.jpg"
   },
   {
     "id": "humifarm",
@@ -90,7 +91,8 @@
         "timing": "پس از جوانه‌زنی",
         "rate": "۵-۱۰ لیتر در هکتار"
       }
-    ]
+    ],
+    "imageUrl": "/assets/images/humifarm_bottle.jpg"
   },
   {
     "id": "jumper",
@@ -775,6 +777,7 @@
         "timing": "ماهیانه یکبار",
         "rate": "۱ تا ۲ لیتر در ۱۰۰۰ متر مربع"
       }
-    ]
+    ],
+    "imageUrl": "/assets/images/ph_best_bottle.jpg"
   }
 ]

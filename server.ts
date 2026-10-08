@@ -212,6 +212,15 @@ app.post('/api/upload', (req, res) => {
 
     fs.writeFileSync(targetFilePath, buffer);
 
+    const distUploadsDir = path.resolve(__dirname, 'dist', 'uploads');
+    if (fs.existsSync(distUploadsDir)) {
+      try {
+        fs.writeFileSync(path.resolve(distUploadsDir, uniqueFilename), buffer);
+      } catch (distErr) {
+        console.warn('Sync to dist/uploads warning:', distErr);
+      }
+    }
+
     const publicUrl = `/uploads/${uniqueFilename}`;
     return res.json({
       success: true,
