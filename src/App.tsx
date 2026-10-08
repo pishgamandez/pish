@@ -29,6 +29,7 @@ export default function App() {
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSection, setActiveSection] = useState('hero');
   const [consultPrefilledProduct, setConsultPrefilledProduct] = useState<string>('');
@@ -184,10 +185,13 @@ export default function App() {
       />
 
       {/* Floating AI Agronomist Assistant */}
-      <FloatingAssistant />
+      <FloatingAssistant
+        isOpen={isAssistantOpen}
+        onOpenChange={setIsAssistantOpen}
+      />
 
-      {/* Floating Contact Buttons (Phone & WhatsApp) */}
-      <FloatingContactButtons />
+      {/* Floating Contact Buttons (Phone & WhatsApp) - automatically hidden when chat is open to prevent UI overlap on mobile */}
+      {!isAssistantOpen && <FloatingContactButtons />}
 
     </div>
   );

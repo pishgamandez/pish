@@ -10,8 +10,25 @@ interface Message {
   time: string;
 }
 
-export const FloatingAssistant: React.FC = () => {
-  const [isOpen, setIsOpen] = useState(false);
+interface FloatingAssistantProps {
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}
+
+export const FloatingAssistant: React.FC<FloatingAssistantProps> = ({
+  isOpen: controlledIsOpen,
+  onOpenChange
+}) => {
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
+  const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
+
+  const setIsOpen = (next: boolean) => {
+    if (controlledIsOpen === undefined) {
+      setInternalIsOpen(next);
+    }
+    onOpenChange?.(next);
+  };
+
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -132,7 +149,7 @@ export const FloatingAssistant: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-40 select-none">
+    <div className="fixed bottom-3 right-3 sm:bottom-6 sm:right-6 z-50 select-none">
       {/* Floating Toggle Button */}
       {!isOpen && (
         <button
@@ -154,12 +171,12 @@ export const FloatingAssistant: React.FC = () => {
 
       {/* Chat Window Popup */}
       {isOpen && (
-        <div className="w-[92vw] sm:w-96 bg-white rounded-3xl shadow-2xl border border-stone-200 overflow-hidden flex flex-col h-[520px] animate-in fade-in slide-in-from-bottom-5 duration-200">
+        <div className="w-[calc(100vw-1.5rem)] max-w-sm sm:w-96 bg-white rounded-3xl shadow-2xl border border-stone-200 overflow-hidden flex flex-col h-[520px] max-h-[82vh] animate-in fade-in slide-in-from-bottom-5 duration-200">
           
           {/* Header */}
-          <div className="bg-gradient-to-l from-emerald-900 to-stone-900 text-white p-4 flex items-center justify-between border-b border-emerald-800">
+          <div className="bg-gradient-to-l from-emerald-900 to-stone-900 text-white p-3.5 sm:p-4 flex items-center justify-between border-b border-emerald-800">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-emerald-700/60 border border-emerald-500/30 flex items-center justify-center text-emerald-300">
+              <div className="w-9 h-9 rounded-xl bg-emerald-700/60 border border-emerald-500/30 flex items-center justify-center text-emerald-300 shrink-0">
                 <Bot className="w-5 h-5" />
               </div>
               <div className="text-right">
@@ -168,12 +185,23 @@ export const FloatingAssistant: React.FC = () => {
               </div>
             </div>
             
-            <button
-              onClick={() => setIsOpen(false)}
-              className="p-1.5 text-stone-300 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-1">
+              <a
+                href={companyInfo.callUrl}
+                className="p-1.5 text-emerald-300 hover:text-white rounded-lg hover:bg-white/10 transition-colors flex items-center gap-1 text-[11px]"
+                title={`تماس مستقیم: ${companyInfo.phoneFormatted}`}
+              >
+                <Phone className="w-4 h-4" />
+                <span className="hidden xs:inline text-[10px]">تماس</span>
+              </a>
+              <button
+                onClick={() => setIsOpen(false)}
+                className="p-1.5 text-stone-300 hover:text-white rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+                title="بستن گفتگو"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
           {/* Messages Area */}
@@ -234,7 +262,7 @@ export const FloatingAssistant: React.FC = () => {
           </div>
 
           {/* Input Bar */}
-          <div className="p-3 bg-white border-t border-stone-200 flex items-center gap-2">
+          <div className="p-3 bg-white border-t border-stone-200 flex items-center gap-2 relative z-20">
             <input
               type="text"
               value={inputText}
@@ -243,12 +271,14 @@ export const FloatingAssistant: React.FC = () => {
                 if (e.key === 'Enter') handleSendMessage();
               }}
               placeholder="سوال خود درباره محصولات یا خاک..."
-              className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs text-stone-800 focus:outline-none focus:ring-2 focus:ring-emerald-700 text-right"
+              className="flex-1 min-w-0 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs text-stone-800 focus:outline-none focus:ring-2 focus:ring-emerald-700 text-right"
             />
             <button
               onClick={() => handleSendMessage()}
               disabled={isLoading || !inputText.trim()}
-              className="p-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl transition-colors disabled:opacity-40 cursor-pointer shadow-xs active:scale-95"
+              className="w-10 h-10 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl transition-all disabled:opacity-40 cursor-pointer shadow-sm active:scale-95 flex items-center justify-center shrink-0"
+              title="ارسال سوال"
+              aria-label="ارسال پیام"
             >
               <Send className="w-4 h-4" />
             </button>
