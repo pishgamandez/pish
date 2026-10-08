@@ -2,6 +2,7 @@ import express from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
+import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import { initialProducts } from './src/data/products';
@@ -23,6 +24,13 @@ const uploadsDir = path.resolve(__dirname, 'public', 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
+
+// Predefined product images slot directory
+const productsImagesDir = path.resolve(__dirname, 'public', 'assets', 'images', 'products');
+if (!fs.existsSync(productsImagesDir)) {
+  fs.mkdirSync(productsImagesDir, { recursive: true });
+}
+
 app.use('/uploads', express.static(uploadsDir));
 app.use('/assets', express.static(path.resolve(__dirname, 'public', 'assets')));
 
@@ -32,6 +40,96 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 const productsFilePath = path.resolve(dataDir, 'products.json');
+const srcProductsFilePath = path.resolve(__dirname, 'src', 'data', 'products.ts');
+const githubConfigFile = path.resolve(__dirname, '.github-config.json');
+
+// Interface and helpers for GitHub sync
+interface GithubConfig {
+  repo: string;
+  branch: string;
+  token: string;
+  autoPush: boolean;
+}
+
+function getGithubConfig(): GithubConfig {
+  const defaultConf: GithubConfig = {
+    repo: 'pishgamandez/pishgaman',
+    branch: 'main',
+    token: '',
+    autoPush: true
+  };
+  if (fs.existsSync(githubConfigFile)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(githubConfigFile, 'utf-8'));
+      return { ...defaultConf, ...data };
+    } catch {}
+  }
+  return defaultConf;
+}
+
+function saveGithubConfig(config: Partial<GithubConfig>): GithubConfig {
+  const current = getGithubConfig();
+  const updated = { ...current, ...config };
+  fs.writeFileSync(githubConfigFile, JSON.stringify(updated, null, 2), 'utf-8');
+  return updated;
+}
+
+function syncGitCommit(message: string): boolean {
+  try {
+    execSync('git add -A', { stdio: 'ignore' });
+    execSync(`git commit -m "${message.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function syncGitPush(): { success: boolean; message: string; output?: string } {
+  try {
+    const config = getGithubConfig();
+    if (!config.token || !config.token.trim()) {
+      return {
+        success: false,
+        message: 'توکن دسترسی گیت‌هاب (Personal Access Token) هنوز تنظیم نشده است.'
+      };
+    }
+    const token = config.token.trim();
+    const repo = config.repo.trim() || 'pishgamandez/pishgaman';
+    const branch = config.branch.trim() || 'main';
+
+    const remoteUrl = `https://${token}@github.com/${repo}.git`;
+    try {
+      execSync('git remote remove origin', { stdio: 'ignore' });
+    } catch {}
+    execSync(`git remote add origin ${remoteUrl}`, { stdio: 'ignore' });
+
+    const pushResult = execSync(`git push origin ${branch}`, {
+      encoding: 'utf-8',
+      timeout: 45000
+    });
+    return {
+      success: true,
+      message: `تغییرات با موفقیت به مخزن گیت‌هاب (${repo}) ارسال شد.`,
+      output: pushResult
+    };
+  } catch (err: any) {
+    console.error('Git push error:', err);
+    let msg = err?.stderr?.toString() || err?.message || 'خطا در ارسال به گیت‌هاب';
+    if (msg.includes('Authentication failed') || msg.includes('Invalid username or token') || msg.includes('403')) {
+      msg = 'احراز هویت گیت‌هاب ناموفق بود. لطفاً بررسی کنید توکن معتبر و دارای مجوز repo باشد.';
+    }
+    return { success: false, message: msg };
+  }
+}
+
+function saveProductsToSourceFiles(products: any[]) {
+  // 1. Write data/products.json
+  fs.writeFileSync(productsFilePath, JSON.stringify(products, null, 2), 'utf-8');
+
+  // 2. Write src/data/products.ts so GitHub Actions & Vite have exact source data
+  const tsContent = `import { Product } from '../types';\n\nexport const initialProducts: Product[] = ${JSON.stringify(products, null, 2)};\n`;
+  fs.writeFileSync(srcProductsFilePath, tsContent, 'utf-8');
+}
 
 // Initialize products file if it doesn't exist
 if (!fs.existsSync(productsFilePath)) {
@@ -158,25 +256,44 @@ app.get('/api/products', (req, res) => {
   return res.json(initialProducts);
 });
 
-// Products API: Save products list permanently
+// Products API: Save products list permanently (writes to both JSON and TypeScript source files, commits to Git, and syncs to GitHub)
 app.post('/api/products', (req, res) => {
   try {
     const products = req.body;
     if (!Array.isArray(products)) {
       return res.status(400).json({ error: 'فرمت داده نامعتبر است.' });
     }
-    fs.writeFileSync(productsFilePath, JSON.stringify(products, null, 2), 'utf-8');
-    return res.json({ success: true, count: products.length });
+
+    // Save to both data/products.json and src/data/products.ts
+    saveProductsToSourceFiles(products);
+
+    // Commit changes to Git so GitHub tracks all modifications
+    const committed = syncGitCommit('admin: update product details and structure');
+
+    // Auto push to GitHub if configured
+    let pushResult = { success: false, message: '' };
+    const conf = getGithubConfig();
+    if (conf.autoPush && conf.token) {
+      pushResult = syncGitPush();
+    }
+
+    return res.json({
+      success: true,
+      count: products.length,
+      gitCommitted: committed,
+      gitPushed: pushResult.success,
+      pushMessage: pushResult.message
+    });
   } catch (err) {
-    console.error('Error writing products.json:', err);
+    console.error('Error saving products:', err);
     return res.status(500).json({ error: 'خطا در ذخیره‌سازی داده‌های محصول.' });
   }
 });
 
-// Direct Image Upload API: saves user's raw file without AI modification
+// Predefined Slot Image Upload API: saves user's raw file to predetermined product slot
 app.post('/api/upload', (req, res) => {
   try {
-    const { data, filename } = req.body;
+    const { data, filename, productId } = req.body;
     if (!data || typeof data !== 'string') {
       return res.status(400).json({ error: 'اطلاعات تصویری ارسال نشده است.' });
     }
@@ -202,35 +319,146 @@ app.post('/api/upload', (req, res) => {
       return res.status(400).json({ error: 'فایل تصویری خالی یا نامعتبر است.' });
     }
 
-    const timestamp = Date.now();
-    const safeBase = (filename || 'product')
-      .replace(/\.[^/.]+$/, '')
-      .replace(/[^a-zA-Z0-9_-]/g, '_')
-      .slice(0, 30);
-    const uniqueFilename = `${safeBase}_${timestamp}.${ext}`;
-    const targetFilePath = path.resolve(uploadsDir, uniqueFilename);
+    // Predefined file naming architecture:
+    // If productId is provided, use the exact predefined slot for that product:
+    // e.g. public/assets/images/products/jumper.jpg
+    const safeSlotName = productId 
+      ? productId.replace(/[^a-zA-Z0-9_-]/g, '_')
+      : (filename || 'product').replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+    
+    const targetFilename = `${safeSlotName}.${ext}`;
+    const targetFilePath = path.resolve(productsImagesDir, targetFilename);
 
     fs.writeFileSync(targetFilePath, buffer);
 
-    const distUploadsDir = path.resolve(__dirname, 'dist', 'uploads');
-    if (fs.existsSync(distUploadsDir)) {
-      try {
-        fs.writeFileSync(path.resolve(distUploadsDir, uniqueFilename), buffer);
-      } catch (distErr) {
-        console.warn('Sync to dist/uploads warning:', distErr);
-      }
+    // Also mirror to uploadsDir for backwards compatibility
+    try {
+      fs.writeFileSync(path.resolve(uploadsDir, targetFilename), buffer);
+    } catch {}
+
+    // Sync to dist if exists
+    const distProductsImagesDir = path.resolve(__dirname, 'dist', 'assets', 'images', 'products');
+    if (!fs.existsSync(distProductsImagesDir)) {
+      try { fs.mkdirSync(distProductsImagesDir, { recursive: true }); } catch {}
+    }
+    try {
+      fs.writeFileSync(path.resolve(distProductsImagesDir, targetFilename), buffer);
+    } catch {}
+
+    // Relative public URL that works on localhost, Vite dev server, and GitHub Pages
+    const publicUrl = `./assets/images/products/${targetFilename}`;
+
+    // Auto commit this image file to git
+    syncGitCommit(`admin: upload product image for ${safeSlotName}`);
+
+    // Auto push to GitHub if token configured
+    const conf = getGithubConfig();
+    let pushResult = { success: false, message: '' };
+    if (conf.autoPush && conf.token) {
+      pushResult = syncGitPush();
     }
 
-    const publicUrl = `/uploads/${uniqueFilename}`;
     return res.json({
       success: true,
       url: publicUrl,
       size: buffer.length,
-      filename: uniqueFilename
+      filename: targetFilename,
+      gitPushed: pushResult.success,
+      pushMessage: pushResult.message
     });
   } catch (err: any) {
     console.error('Direct upload error:', err);
     return res.status(500).json({ error: 'خطا در بارگذاری و ذخیره فایل تصویر.' });
+  }
+});
+
+// GitHub Integration Endpoints
+app.get('/api/github/status', (req, res) => {
+  const conf = getGithubConfig();
+  let lastCommit = '';
+  try {
+    lastCommit = execSync('git log -1 --pretty=format:"%h - %s (%cr)"', { encoding: 'utf-8' }).trim();
+  } catch {}
+  return res.json({
+    configured: Boolean(conf.token && conf.token.trim()),
+    repo: conf.repo,
+    branch: conf.branch,
+    autoPush: conf.autoPush,
+    hasToken: Boolean(conf.token && conf.token.trim()),
+    tokenPreview: conf.token ? `${conf.token.slice(0, 4)}••••${conf.token.slice(-4)}` : '',
+    lastCommit
+  });
+});
+
+app.post('/api/github/config', (req, res) => {
+  try {
+    const { token, repo, branch, autoPush } = req.body;
+    const current = getGithubConfig();
+    const updated = saveGithubConfig({
+      token: token !== undefined ? token : current.token,
+      repo: repo || current.repo,
+      branch: branch || current.branch,
+      autoPush: autoPush !== undefined ? autoPush : current.autoPush
+    });
+    return res.json({
+      success: true,
+      config: {
+        repo: updated.repo,
+        branch: updated.branch,
+        autoPush: updated.autoPush,
+        hasToken: Boolean(updated.token)
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'خطا در ذخیره تنظیمات گیت‌هاب.' });
+  }
+});
+
+app.post('/api/github/test', async (req, res) => {
+  try {
+    const { token, repo } = req.body;
+    const effectiveToken = token || getGithubConfig().token;
+    const effectiveRepo = repo || getGithubConfig().repo || 'pishgamandez/pishgaman';
+
+    if (!effectiveToken || !effectiveToken.trim()) {
+      return res.status(400).json({ success: false, message: 'توکن وارد نشده است.' });
+    }
+
+    const ghRes = await fetch(`https://api.github.com/repos/${effectiveRepo}`, {
+      headers: {
+        'Authorization': `Bearer ${effectiveToken.trim()}`,
+        'User-Agent': 'Pishgaman-Admin-Panel',
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    });
+
+    if (!ghRes.ok) {
+      const errData = await ghRes.json().catch(() => ({} as any));
+      return res.status(ghRes.status).json({
+        success: false,
+        message: errData.message || `خطا در اتصال به مخزن گیت‌هاب (${ghRes.status})`
+      });
+    }
+
+    const repoData = await ghRes.json();
+    return res.json({
+      success: true,
+      message: `اتصال با موفقیت برقرار شد! مخزن: ${repoData.full_name}`,
+      repoName: repoData.full_name,
+      permissions: repoData.permissions,
+      defaultBranch: repoData.default_branch
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err?.message || 'خطا در تست اتصال.' });
+  }
+});
+
+app.post('/api/github/push', (req, res) => {
+  const result = syncGitPush();
+  if (result.success) {
+    return res.json(result);
+  } else {
+    return res.status(400).json(result);
   }
 });
 

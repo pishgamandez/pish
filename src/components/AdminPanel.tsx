@@ -3,7 +3,8 @@ import { Product, ConsultationInquiry, DosageRate } from '../types';
 import { 
   X, Plus, Trash2, Edit3, Save, Check, RefreshCw, Upload, Image as ImageIcon, 
   MessageSquare, Shield, Lock, KeyRound, AlertTriangle, Eye, EyeOff, 
-  CheckCircle2, Sparkles, Maximize2, FileCheck, AlertCircle, Download
+  CheckCircle2, Sparkles, Maximize2, FileCheck, AlertCircle, Download,
+  GitBranch, ExternalLink, Globe
 } from 'lucide-react';
 import { companyInfo } from '../data/company';
 
@@ -39,7 +40,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'products' | 'inquiries' | 'settings'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'inquiries' | 'github' | 'settings'>('products');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [uploadSuccessMessage, setUploadSuccessMessage] = useState<string | null>(null);
@@ -53,6 +54,47 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [newPassword, setNewPassword] = useState('');
   const [changePasswordSuccess, setChangePasswordSuccess] = useState(false);
 
+  // GitHub Sync states
+  const [githubConfig, setGithubConfig] = useState<{
+    configured: boolean;
+    repo: string;
+    branch: string;
+    autoPush: boolean;
+    hasToken: boolean;
+    tokenPreview?: string;
+    lastCommit?: string;
+  }>({
+    configured: false,
+    repo: 'pishgamandez/pishgaman',
+    branch: 'main',
+    autoPush: true,
+    hasToken: false,
+    lastCommit: ''
+  });
+  const [githubTokenInput, setGithubTokenInput] = useState('');
+  const [githubRepoInput, setGithubRepoInput] = useState('pishgamandez/pishgaman');
+  const [githubBranchInput, setGithubBranchInput] = useState('main');
+  const [githubAutoPushInput, setGithubAutoPushInput] = useState(true);
+  const [isTestingGitHub, setIsTestingGitHub] = useState(false);
+  const [githubTestResult, setGithubTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [isPushingToGitHub, setIsPushingToGitHub] = useState(false);
+  const [githubPushResult, setGithubPushResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const fetchGitHubStatus = async () => {
+    try {
+      const res = await fetch('/api/github/status');
+      if (res.ok) {
+        const data = await res.json();
+        setGithubConfig(data);
+        if (data.repo) setGithubRepoInput(data.repo);
+        if (data.branch) setGithubBranchInput(data.branch);
+        if (data.autoPush !== undefined) setGithubAutoPushInput(data.autoPush);
+      }
+    } catch (err) {
+      console.warn('GitHub status fetch ignored:', err);
+    }
+  };
+
   useEffect(() => {
     try {
       const stored = JSON.parse(localStorage.getItem('pishgaman_inquiries') || '[]');
@@ -60,6 +102,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     } catch {
       // ignore
     }
+    fetchGitHubStatus();
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -155,18 +198,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       console.warn('LocalStorage save failed:', err);
     }
 
-    // Direct permanent sync with server
+    // Direct permanent sync with server and Git/GitHub
     try {
-      await fetch('/api/products', {
+      const res = await fetch('/api/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedList)
       });
+      if (res.ok) {
+        const resData = await res.json();
+        if (resData.gitPushed) {
+          setSaveToast(`محصول «${editingProduct.nameFa}» ذخیره و مستقیماً به گیت‌هاب ارسال (Push) شد.`);
+        } else {
+          setSaveToast(`محصول «${editingProduct.nameFa}» در کدهای پروژه و گیت ثبت گردید.`);
+        }
+      }
     } catch (err) {
       console.error('Failed to sync products to server:', err);
     }
 
-    setSaveToast(`محصول «${editingProduct.nameFa}» با موفقیت ذخیره و به‌روزرسانی شد.`);
     setTimeout(() => setSaveToast(null), 4000);
 
     setEditingProduct(null);
@@ -188,6 +238,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updated)
+      }).then(r => r.json()).then(data => {
+        if (data?.gitPushed) {
+          setSaveToast('محصول حذف شد و تغییرات به گیت‌هاب ارسال شد.');
+        } else {
+          setSaveToast('محصول با موفقیت حذف و تغییرات ذخیره شد.');
+        }
+        setTimeout(() => setSaveToast(null), 3000);
       }).catch(() => {});
     }
   };
@@ -205,6 +262,74 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       setTimeout(() => setSaveToast(null), 3000);
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  // GitHub Sync Actions
+  const handleSaveGitHubConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/api/github/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: githubTokenInput.trim() || undefined,
+          repo: githubRepoInput.trim(),
+          branch: githubBranchInput.trim(),
+          autoPush: githubAutoPushInput
+        })
+      });
+      if (res.ok) {
+        setGithubTokenInput('');
+        setGithubTestResult({ ok: true, message: 'تنظیمات و توکن گیت‌هاب با موفقیت ذخیره شد.' });
+        fetchGitHubStatus();
+        setSaveToast('تنظیمات گیت‌هاب با موفقیت ذخیره شد.');
+        setTimeout(() => setSaveToast(null), 3000);
+      }
+    } catch (err: any) {
+      setGithubTestResult({ ok: false, message: 'خطا در ذخیره تنظیمات: ' + err.message });
+    }
+  };
+
+  const handleTestGitHubConnection = async () => {
+    setIsTestingGitHub(true);
+    setGithubTestResult(null);
+    try {
+      const res = await fetch('/api/github/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: githubTokenInput.trim() || undefined,
+          repo: githubRepoInput.trim() || undefined
+        })
+      });
+      const data = await res.json();
+      setGithubTestResult({ ok: data.success, message: data.message });
+    } catch (err: any) {
+      setGithubTestResult({ ok: false, message: 'خطا در تست اتصال: ' + err.message });
+    } finally {
+      setIsTestingGitHub(false);
+    }
+  };
+
+  const handlePushToGitHub = async () => {
+    setIsPushingToGitHub(true);
+    setGithubPushResult(null);
+    try {
+      const res = await fetch('/api/github/push', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setGithubPushResult({ ok: true, message: data.message });
+        setSaveToast('تمام تغییرات با موفقیت به گیت‌هاب ارسال (Push) شدند.');
+        setTimeout(() => setSaveToast(null), 4000);
+        fetchGitHubStatus();
+      } else {
+        setGithubPushResult({ ok: false, message: data.message });
+      }
+    } catch (err: any) {
+      setGithubPushResult({ ok: false, message: 'خطا در ارسال: ' + err.message });
+    } finally {
+      setIsPushingToGitHub(false);
     }
   };
 
@@ -265,14 +390,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
         const dimensions = `${origWidth} × ${origHeight} پیکسل`;
 
-        // Direct upload to server to save permanent file
+        // Direct upload to server to save permanent file in predefined product slot
         try {
           const res = await fetch('/api/upload', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               data: finalDataUrl,
-              filename: file.name
+              filename: file.name,
+              productId: editingProduct.id
             })
           });
 
@@ -300,17 +426,29 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               try {
                 localStorage.setItem('pishgaman_custom_products', JSON.stringify(updatedList));
               } catch {}
+              
+              let pushStatusNote = '';
               try {
-                await fetch('/api/products', {
+                const prodRes = await fetch('/api/products', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify(updatedList)
                 });
+                if (prodRes.ok) {
+                  const prodData = await prodRes.json();
+                  if (prodData.gitPushed) {
+                    pushStatusNote = ' 🚀 مستقیماً به مخزن گیت‌هاب ارسال (Push) شد!';
+                  }
+                }
               } catch (postErr) {
                 console.error('Failed to sync to /api/products:', postErr);
               }
 
-              setUploadSuccessMessage(`عکس اصلی محصول با موفقیت ثبت شد و فوراً در دیتابیس سرور ذخیره گردید. روی تمام دستگاه‌ها (موبایل و لپ‌تاپ) فعال است.`);
+              const successText = result.gitPushed
+                ? `عکس محصول در اسلات اختصاصی ذخیره و مستقیم به گیت‌هاب push شد!${pushStatusNote}`
+                : `عکس محصول در اسلات اختصاصی (public/assets/images/products/${editingProduct.id}) ذخیره و در پروژه ثبت شد.${pushStatusNote}`;
+
+              setUploadSuccessMessage(successText);
               setIsUploadingImage(false);
               return;
             }
@@ -538,6 +676,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                 <button
                   onClick={() => {
+                    setActiveTab('github');
+                    setEditingProduct(null);
+                  }}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    activeTab === 'github'
+                      ? 'bg-stone-900 text-white shadow-sm'
+                      : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                  }`}
+                >
+                  <GitBranch className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>اتصال گیت‌هاب</span>
+                  {githubConfig.configured && (
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse"></span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => {
                     setActiveTab('settings');
                     setEditingProduct(null);
                   }}
@@ -551,8 +707,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </button>
               </div>
 
-              {/* Action Buttons: Add Product + Reset */}
-              <div className="flex items-center gap-2">
+              {/* Action Buttons: Add Product + GitHub Push + Export */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={handlePushToGitHub}
+                  disabled={isPushingToGitHub}
+                  className="px-3.5 py-2 bg-stone-900 hover:bg-black text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow transition-all cursor-pointer disabled:opacity-50 active:scale-95"
+                  title="ارسال مستقیم آخرین تغییرات به گیت‌هاب pishgamandez/pishgaman"
+                >
+                  <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>{isPushingToGitHub ? 'در حال ارسال به گیت‌هاب...' : 'انتشار در گیت‌هاب'}</span>
+                </button>
+
                 <button
                   onClick={handleCreateNewProduct}
                   className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition-all cursor-pointer active:scale-95"
@@ -617,7 +783,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               آپلود مستقیم تصویر محصول (کیفیت اصلی فایل - بدون تغییر هوش مصنوعی)
                             </label>
                             <span className="text-[11px] text-stone-500 block">
-                              عکس شما مستقیماً با وضوح و ابعاد اورجینال آپلود شده و بدون هیچ تغییری روی سایت قرار می‌گیرد.
+                              عکس شما مستقیماً با وضوح و ابعاد اورجینال در مسیر اختصاصی گیت‌هاب ذخیره می‌شود.
+                            </span>
+                            <span className="text-[10px] font-mono text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block mt-1">
+                              محل ذخیره فایل در گیت‌هاب: public/assets/images/products/{editingProduct.id}.jpg
                             </span>
                           </div>
                         </div>
@@ -1193,6 +1362,245 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     >
                       ذخیره رمز جدید
                     </button>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: GITHUB SYNC & AUTO PUBLISH */}
+            {activeTab === 'github' && (
+              <div className="space-y-6">
+                <div className="bg-stone-900 text-white p-6 rounded-3xl border border-stone-800 shadow-xl space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-800 pb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                        <GitBranch className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h4 className="font-black text-base">اتصال و انتشار خودکار در گیت‌هاب (GitHub Sync)</h4>
+                        <p className="text-xs text-stone-400 mt-0.5">
+                          هماهنگی مستقیم پنل مدیریت با مخزن پروژه و هاست زنده GitHub Pages
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {githubConfig.configured ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                          <span>متصل به گیت‌هاب</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-950 text-amber-300 border border-amber-800">
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                          <span>نیازمند تنظیم توکن</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Repository and Live URLs */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
+                    <div className="bg-stone-800/70 p-3 rounded-2xl border border-stone-700/60 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <GitBranch className="w-4 h-4 text-stone-400" />
+                        <div>
+                          <span className="text-stone-400 text-[10px] block">مخزن هدف در گیت‌هاب:</span>
+                          <span className="font-mono font-bold text-white text-xs">{githubConfig.repo} ({githubConfig.branch})</span>
+                        </div>
+                      </div>
+                      <a 
+                        href={`https://github.com/${githubConfig.repo}`} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="text-emerald-400 hover:text-emerald-300 flex items-center gap-1 text-[11px] font-bold"
+                      >
+                        <span>مشاهده</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+
+                    <div className="bg-stone-800/70 p-3 rounded-2xl border border-stone-700/60 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Globe className="w-4 h-4 text-emerald-400" />
+                        <div>
+                          <span className="text-stone-400 text-[10px] block">آدرس آنلاین سایت (GitHub Pages):</span>
+                          <span className="font-mono text-emerald-300 text-xs">pishgamandez.github.io/pishgaman/</span>
+                        </div>
+                      </div>
+                      <a 
+                        href="https://pishgamandez.github.io/pishgaman/" 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="text-emerald-400 hover:text-emerald-300 flex items-center gap-1 text-[11px] font-bold"
+                      >
+                        <span>بازدید</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Manual Push Now Card */}
+                  <div className="bg-stone-950 p-4 rounded-2xl border border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <span className="font-bold text-xs text-white block">ارسال دستی و انتشار اکنون (Push Now)</span>
+                      <span className="text-[11px] text-stone-400 block mt-0.5">
+                        تمام عکس‌ها و تغییرات متنی که تا الان ثبت کرده‌اید فوراً به مخزن pishgamandez/pishgaman ارسال شده و سایت زنده ظرف ۳۰ ثانیه آپدیت می‌شود.
+                      </span>
+                      {githubConfig.lastCommit && (
+                        <span className="text-[10px] font-mono text-stone-500 block mt-1">
+                          آخرین کامیت ثبت‌شده: {githubConfig.lastCommit}
+                        </span>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handlePushToGitHub}
+                      disabled={isPushingToGitHub}
+                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-950 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 shrink-0"
+                    >
+                      <Upload className="w-4 h-4" />
+                      <span>{isPushingToGitHub ? 'در حال ارسال به گیت‌هاب...' : 'ارسال تمام تغییرات به گیت‌هاب'}</span>
+                    </button>
+                  </div>
+
+                  {githubPushResult && (
+                    <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
+                      githubPushResult.ok ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-rose-950 text-rose-300 border border-rose-800'
+                    }`}>
+                      {githubPushResult.ok ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+                      <span>{githubPushResult.message}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* GitHub Token Setup Form & Guide */}
+                <div className="bg-stone-50 p-6 rounded-3xl border border-stone-200 space-y-5">
+                  <div className="flex items-center gap-2 border-b border-stone-200 pb-3">
+                    <KeyRound className="w-5 h-5 text-stone-700" />
+                    <div>
+                      <h5 className="font-black text-sm text-stone-900">تنظیمات کلید دسترسی گیت‌هاب (Personal Access Token)</h5>
+                      <span className="text-[11px] text-stone-500">برای اینکه پنل مدیریت بتواند تغییرات را به مخزن شما در گیت‌هاب ارسال کند</span>
+                    </div>
+                  </div>
+
+                  {/* Step-by-Step Guide in Persian */}
+                  <div className="bg-white p-4 rounded-2xl border border-stone-200 space-y-2 text-xs">
+                    <span className="font-bold text-stone-900 block flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-amber-500" />
+                      راهنمای دریافت توکن در ۱ دقیقه (فقط یک‌بار):
+                    </span>
+                    <ol className="list-decimal list-inside space-y-1.5 text-stone-600 leading-relaxed pr-1 text-[11px]">
+                      <li>
+                        در مرورگر وارد اکانت گیت‌هاب خود شوید و به صفحه 
+                        <a 
+                          href="https://github.com/settings/tokens" 
+                          target="_blank" 
+                          rel="noreferrer" 
+                          className="text-emerald-700 underline font-mono mx-1 font-bold inline-flex items-center gap-0.5"
+                        >
+                          github.com/settings/tokens <ExternalLink className="w-3 h-3 inline" />
+                        </a>
+                        بروید.
+                      </li>
+                      <li>روی دکمه <b>Generate new token (classic)</b> کلیک کنید.</li>
+                      <li>یک نام دلخواه (مثلاً <code>Pishgaman Admin</code>) بگذارید و تیک گزینه <b>repo</b> (دسترسی کامل به مخازن) را بزنید.</li>
+                      <li>در پایین صفحه دکمه سبز <b>Generate token</b> را بزنید و کد ساخته‌شده (که با <code>ghp_</code> آغاز می‌شود) را در کادر زیر وارد فرمایید.</li>
+                    </ol>
+                  </div>
+
+                  <form onSubmit={handleSaveGitHubConfig} className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-stone-700 mb-1">
+                          نام مخزن در گیت‌هاب:
+                        </label>
+                        <input
+                          type="text"
+                          value={githubRepoInput}
+                          onChange={(e) => setGithubRepoInput(e.target.value)}
+                          placeholder="pishgamandez/pishgaman"
+                          dir="ltr"
+                          className="w-full text-xs font-mono p-2.5 rounded-xl border border-stone-300 bg-white"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-stone-700 mb-1">
+                          شاخه هدف (Branch):
+                        </label>
+                        <input
+                          type="text"
+                          value={githubBranchInput}
+                          onChange={(e) => setGithubBranchInput(e.target.value)}
+                          placeholder="main"
+                          dir="ltr"
+                          className="w-full text-xs font-mono p-2.5 rounded-xl border border-stone-300 bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-stone-700">
+                          توکن گیت‌هاب (GitHub Token):
+                        </label>
+                        {githubConfig.hasToken && (
+                          <span className="text-[10px] text-emerald-700 font-mono font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                            توکن ذخیره شده: {githubConfig.tokenPreview}
+                          </span>
+                        )}
+                      </div>
+                      <input
+                        type="password"
+                        value={githubTokenInput}
+                        onChange={(e) => setGithubTokenInput(e.target.value)}
+                        placeholder={githubConfig.hasToken ? "برای تغییر، توکن جدید را وارد کنید..." : "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
+                        dir="ltr"
+                        className="w-full text-xs font-mono p-2.5 rounded-xl border border-stone-300 bg-white focus:ring-2 focus:ring-emerald-700"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <input
+                        type="checkbox"
+                        id="autoPushCheckbox"
+                        checked={githubAutoPushInput}
+                        onChange={(e) => setGithubAutoPushInput(e.target.checked)}
+                        className="w-4 h-4 rounded text-emerald-700 focus:ring-emerald-600"
+                      />
+                      <label htmlFor="autoPushCheckbox" className="text-xs font-bold text-stone-800 cursor-pointer">
+                        ارسال و انتشار خودکار به گیت‌هاب: با هر بار ویرایش متن یا آپلود عکس، تغییرات بلافاصله به گیت‌هاب push شوند.
+                      </label>
+                    </div>
+
+                    {githubTestResult && (
+                      <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
+                        githubTestResult.ok ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
+                      }`}>
+                        {githubTestResult.ok ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <AlertTriangle className="w-4 h-4 text-rose-600" />}
+                        <span>{githubTestResult.message}</span>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-3 pt-2">
+                      <button
+                        type="submit"
+                        className="px-6 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer"
+                      >
+                        ذخیره تنظیمات گیت‌هاب
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleTestGitHubConnection}
+                        disabled={isTestingGitHub || (!githubTokenInput && !githubConfig.hasToken)}
+                        className="px-4 py-2.5 border border-stone-300 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        {isTestingGitHub ? 'در حال بررسی اتصال...' : 'تست اتصال به مخزن'}
+                      </button>
+                    </div>
                   </form>
                 </div>
               </div>
