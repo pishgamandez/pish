@@ -174,7 +174,13 @@ export default function App() {
         isOpen={adminOpen}
         onClose={() => setAdminOpen(false)}
         products={products}
-        onUpdateProducts={(updated) => setProducts(updated)}
+        onUpdateProducts={(updated) => {
+          setProducts(updated);
+          if (selectedProduct) {
+            const found = updated.find(p => p.id === selectedProduct.id);
+            if (found) setSelectedProduct(found);
+          }
+        }}
       />
 
       {/* Floating AI Agronomist Assistant */}

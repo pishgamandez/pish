@@ -9,15 +9,32 @@ interface Props {
 }
 
 export const ProductPackageIllustration: React.FC<Props> = ({ product, className = '', size = 'md' }) => {
-  if (product.imageUrl && product.imageUrl.startsWith('http')) {
+  const [imageError, setImageError] = React.useState(false);
+
+  // Reset error state if product image URL changes
+  React.useEffect(() => {
+    setImageError(false);
+  }, [product.imageUrl]);
+
+  const heightClass = size === 'sm' ? 'h-36' : size === 'lg' ? 'h-80' : 'h-52';
+
+  if (product.imageUrl && product.imageUrl.trim() !== '' && !imageError) {
     return (
-      <div className={`relative flex items-center justify-center overflow-hidden rounded-2xl bg-stone-100 ${className}`}>
+      <div
+        className={`relative w-full ${heightClass} flex items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-b from-stone-100 to-white border border-stone-200/90 shadow-inner group ${className}`}
+      >
         <img
           src={product.imageUrl}
           alt={product.nameFa}
-          className="w-full h-full object-contain p-2"
+          className="w-full h-full object-contain p-3 drop-shadow-md transition-transform duration-300 group-hover:scale-105"
           loading="lazy"
+          onError={() => setImageError(true)}
         />
+        {product.badge && (
+          <span className="absolute top-3 left-3 text-[10px] font-bold px-2 py-0.5 rounded-full text-white shadow-md z-20 bg-emerald-700">
+            {product.badge}
+          </span>
+        )}
       </div>
     );
   }
@@ -59,8 +76,6 @@ export const ProductPackageIllustration: React.FC<Props> = ({ product, className
     bodyGrad = 'from-emerald-950 via-teal-900 to-emerald-900';
     glowColor = 'rgba(4, 120, 87, 0.25)';
   }
-
-  const heightClass = size === 'sm' ? 'h-36' : size === 'lg' ? 'h-80' : 'h-52';
 
   return (
     <div

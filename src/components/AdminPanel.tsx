@@ -37,6 +37,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const [activeTab, setActiveTab] = useState<'products' | 'inquiries' | 'settings'>('products');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [imageCompressing, setImageCompressing] = useState(false);
   const [inquiries, setInquiries] = useState<ConsultationInquiry[]>([]);
 
   // Change password states
@@ -140,8 +141,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     onUpdateProducts(updatedList);
     try {
       localStorage.setItem('pishgaman_custom_products', JSON.stringify(updatedList));
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error('Failed to save to localStorage:', err);
     }
     setEditingProduct(null);
   };
@@ -160,16 +161,62 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && editingProduct) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setEditingProduct({
-          ...editingProduct,
-          imageUrl: reader.result as string
-        });
+    if (!file || !editingProduct) return;
+
+    setImageCompressing(true);
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // Automatically resize and optimize image to max 900x900
+        const maxDimension = 900;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          // Compress to JPEG 0.85 (~60-120KB)
+          const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          setEditingProduct(prev => prev ? {
+            ...prev,
+            imageUrl: optimizedDataUrl
+          } : null);
+        } else {
+          setEditingProduct(prev => prev ? {
+            ...prev,
+            imageUrl: event.target?.result as string
+          } : null);
+        }
+        setImageCompressing(false);
       };
-      reader.readAsDataURL(file);
-    }
+
+      img.onerror = () => {
+        setImageCompressing(false);
+      };
+
+      img.src = event.target?.result as string;
+    };
+
+    reader.onerror = () => {
+      setImageCompressing(false);
+    };
+
+    reader.readAsDataURL(file);
   };
 
   const handleAddDosageRow = () => {
@@ -420,14 +467,33 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           />
                         </div>
                       </div>
-                      {editingProduct.imageUrl && (
-                        <div className="mt-2 flex items-center gap-3 bg-stone-50 p-2 rounded-xl border border-stone-200">
-                          <img
-                            src={editingProduct.imageUrl}
-                            alt="پیش‌نمایش تصویر محصول"
-                            className="w-12 h-12 object-contain rounded-lg bg-white border border-stone-200"
-                          />
-                          <span className="text-xs text-emerald-700 font-bold">تصویر با موفقیت بارگذاری شد</span>
+                      {imageCompressing && (
+                        <div className="mt-2 flex items-center gap-2 p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs font-bold text-emerald-800">
+                          <span className="inline-block w-4 h-4 border-2 border-emerald-700 border-t-transparent rounded-full animate-spin" />
+                          <span>در حال فشرده‌سازی و بهینه‌سازی خودکار تصویر برای ذخیره‌سازی...</span>
+                        </div>
+                      )}
+
+                      {editingProduct.imageUrl && !imageCompressing && (
+                        <div className="mt-2 flex items-center justify-between gap-3 bg-stone-50 p-2.5 rounded-xl border border-stone-200">
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={editingProduct.imageUrl}
+                              alt="پیش‌نمایش تصویر محصول"
+                              className="w-14 h-14 object-contain rounded-lg bg-white border border-stone-200 p-1"
+                            />
+                            <div>
+                              <span className="text-xs text-emerald-700 font-bold block">تصویر تایید و بهینه‌سازی شد</span>
+                              <span className="text-[10px] text-stone-500">این عکس بر روی کارت محصول و کاتالوگ نمایش داده می‌شود.</span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setEditingProduct({ ...editingProduct, imageUrl: '' })}
+                            className="text-xs text-rose-600 hover:text-rose-800 font-bold hover:bg-rose-50 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+                          >
+                            حذف تصویر
+                          </button>
                         </div>
                       )}
                     </div>
