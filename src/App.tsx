@@ -21,15 +21,7 @@ export default function App() {
     try {
       const saved = localStorage.getItem('pishgaman_custom_products');
       if (saved) {
-        const parsed: Product[] = JSON.parse(saved);
-        return parsed.map(item => {
-          // Fallback to default initial image ONLY if the item has no image at all
-          const init = initialProducts.find(p => p.id === item.id);
-          if (init?.imageUrl && !item.imageUrl) {
-            return { ...item, imageUrl: init.imageUrl };
-          }
-          return item;
-        });
+        return JSON.parse(saved);
       }
     } catch {
       // ignore
