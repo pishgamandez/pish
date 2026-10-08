@@ -26,8 +26,9 @@ export const FloatingContactButtons: React.FC = () => {
         title="تماس مستقیم با شماره 09128247415"
       >
         <Phone className="w-6 h-6 animate-pulse" />
-        <span className="absolute left-14 bg-stone-900 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-md pointer-events-none">
-          تماس: {companyInfo.phoneFormatted}
+        <span className="absolute left-14 bg-stone-900 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-md pointer-events-none flex items-center gap-1.5">
+          <span>تماس:</span>
+          <span dir="ltr" className="font-mono">{companyInfo.phoneFormatted}</span>
         </span>
       </a>
     </div>

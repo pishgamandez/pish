@@ -70,7 +70,8 @@ export const Footer: React.FC<Props> = ({ onNavigate, onOpenAdmin }) => {
                   <span className="text-[10px] text-stone-400 block">مشاوره مستقیم فروش و مهندسی زراعی:</span>
                   <a
                     href={companyInfo.callUrl}
-                    className="font-mono text-base font-black text-white hover:text-emerald-300 tracking-wider"
+                    dir="ltr"
+                    className="font-mono text-base font-black text-white hover:text-emerald-300 tracking-wider inline-block text-left"
                   >
                     {companyInfo.phoneFormatted}
                   </a>

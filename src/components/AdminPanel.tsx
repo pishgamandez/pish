@@ -253,9 +253,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
 
             <div>
-              <h4 className="text-xl font-black text-stone-900">احراز هویت مدیریت</h4>
-              <p className="text-xs text-stone-500 mt-1 leading-relaxed">
-                لطفاً کلید عبور امن را وارد نمایید. به دلیل حفظ امنیت پروژه، رمز عبور اصلی در گیت‌هاب ذخیره نمی‌شود و به صورت رمزنگاری‌شده (SHA-256) ارزیابی می‌گردد.
+              <h4 className="text-xl font-black text-stone-900">ورود مدیر سیستم</h4>
+              <p className="text-xs text-stone-500 mt-1">
+                رمز را وارد کنید
               </p>
             </div>
 
@@ -805,7 +805,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </div>
 
                   <p className="text-xs text-stone-600 leading-relaxed">
-                    می‌توانید برای امنیت بیشتر، رمز عبور اختصاصی خود را تعریف فرمایید. رمز عبور به صورت هش رمزنگاری‌شده (SHA-256) ذخیره خواهد شد و در گیت‌هاب نمایان نخواهد بود.
+                    می‌توانید برای امنیت بیشتر، رمز عبور اختصاصی خود را در این بخش تعریف و ذخیره فرمایید.
                   </p>
 
                   <form onSubmit={handleChangePassword} className="space-y-3">

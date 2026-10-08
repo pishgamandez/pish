@@ -202,7 +202,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 className="px-6 py-3.5 bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-sm rounded-xl transition-all shadow-lg shadow-amber-400/20 flex items-center gap-2 cursor-pointer active:scale-95 whitespace-nowrap"
               >
                 <Phone className="w-4 h-4" />
-                <span>تماس با {companyInfo.phoneFormatted}</span>
+                <span>تماس با:</span>
+                <span dir="ltr" className="font-mono">{companyInfo.phoneFormatted}</span>
               </a>
 
               <button

@@ -6,7 +6,7 @@ export const companyInfo = {
   manager: 'دکتر راستین رستمی',
   managerTitle: 'مدیریت و مشاور ارشد تغذیه گیاهی',
   phone: '09128247415',
-  phoneFormatted: '۰۹۱۲-۸۲۴-۷۴۱۵',
+  phoneFormatted: '09128247415',
   sloganEn: "We're number two, We try harder...",
   sloganFa: "ما شماره دو هستیم، پس با تمام توان بیشتر تلاش می‌کنیم...",
   address: 'تهران، دفتر مرکزی شرکت پیشگامان پایدار فلات نیک',

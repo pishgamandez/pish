@@ -216,7 +216,8 @@ export const ConsultationForm: React.FC<Props> = ({ prefilledProduct, onSubmitte
                   <span>یا تماس مستقیم:</span>
                   <a
                     href={companyInfo.callUrl}
-                    className="font-mono font-bold text-emerald-800 hover:underline"
+                    dir="ltr"
+                    className="font-mono font-bold text-emerald-800 hover:underline inline-block text-left"
                   >
                     {companyInfo.phoneFormatted}
                   </a>

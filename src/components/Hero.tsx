@@ -98,7 +98,8 @@ export const Hero: React.FC<HeroProps> = ({ onExploreProducts, onOpenConsult }) 
                 className="px-4 py-3.5 text-stone-200 hover:text-white text-xs flex items-center gap-2 underline underline-offset-4"
               >
                 <Phone className="w-4 h-4 text-amber-400 animate-bounce" />
-                <span>تماس فوری: {companyInfo.phoneFormatted}</span>
+                <span>تماس فوری:</span>
+                <span dir="ltr" className="font-mono">{companyInfo.phoneFormatted}</span>
               </a>
             </div>
           </div>
@@ -152,6 +153,7 @@ export const Hero: React.FC<HeroProps> = ({ onExploreProducts, onOpenConsult }) 
                   <span className="text-stone-300">مشاوره تخصصی باغات و زراعت:</span>
                   <a
                     href={companyInfo.callUrl}
+                    dir="ltr"
                     className="font-mono text-emerald-300 font-bold hover:underline"
                   >
                     {companyInfo.phoneFormatted}

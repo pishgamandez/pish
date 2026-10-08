@@ -169,7 +169,7 @@ export const Header: React.FC<HeaderProps> = ({
             <Phone className="w-4 h-4 animate-bounce" />
             <div className="text-right">
               <span className="block text-[10px] text-emerald-200 font-normal">مشاوره مستقیم فروش:</span>
-              <span className="font-mono text-xs">{companyInfo.phoneFormatted}</span>
+              <span dir="ltr" className="font-mono text-xs inline-block text-left">{companyInfo.phoneFormatted}</span>
             </div>
           </a>
 
@@ -248,7 +248,8 @@ export const Header: React.FC<HeaderProps> = ({
               className="w-full py-3 bg-emerald-700 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-sm"
             >
               <Phone className="w-4 h-4" />
-              <span>تماس با دکتر راستین رستمی: {companyInfo.phoneFormatted}</span>
+              <span>تماس با دکتر راستین رستمی:</span>
+              <span dir="ltr" className="font-mono">{companyInfo.phoneFormatted}</span>
             </a>
           </div>
         </div>
