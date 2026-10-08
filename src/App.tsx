@@ -39,7 +39,7 @@ export default function App() {
 
   // Sync with server-stored products
   useEffect(() => {
-    fetch('/api/products')
+    fetch(`/api/products?t=${Date.now()}`, { cache: 'no-store' })
       .then(res => {
         if (!res.ok) throw new Error('Network response was not ok');
         return res.json();
