@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { soilGuideData } from '../data/soilGuide';
 import { Activity, Droplets, CheckCircle, ArrowLeft, BookOpen, AlertTriangle } from 'lucide-react';
 import { companyInfo } from '../data/company';
+import researchImg from '../assets/images/agri_research_lab_1791480948724.jpg';
 
 interface Props {
   onOpenConsult: () => void;
@@ -58,12 +59,31 @@ export const SoilGuideSection: React.FC<Props> = ({ onOpenConsult }) => {
           </button>
         </div>
 
-        {/* Content Box */}
-        <div className="bg-stone-50 rounded-3xl border border-stone-200/90 p-6 sm:p-10 shadow-xs space-y-8 text-right">
-          <div className="space-y-3">
-            <span className="text-xs font-bold text-emerald-700 tracking-wide uppercase font-mono">
-              Scientific Agronomy Guide
-            </span>
+          {/* Content Box */}
+          <div className="bg-stone-50 rounded-3xl border border-stone-200/90 p-6 sm:p-10 shadow-xs space-y-8 text-right">
+            
+            {/* Visual Photo Card for Soil Testing */}
+            <div className="relative rounded-2xl overflow-hidden h-48 sm:h-64 shadow-md border border-stone-200">
+              <img
+                src={researchImg}
+                alt="پژوهش علمی خاک و آزمایشگاه تغذیه گیاهی"
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-stone-950/80 via-stone-950/20 to-transparent flex items-end p-6">
+                <div className="text-white">
+                  <span className="text-xs text-emerald-400 font-bold block mb-1">کنترل علمی و آزمون دقیق خاک</span>
+                  <h4 className="text-lg sm:text-xl font-black">
+                    آنالیز فیزیولوژیک برهم‌کنش عناصر، شوری (EC) و اسیدیته (pH)
+                  </h4>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <span className="text-xs font-bold text-emerald-700 tracking-wide uppercase font-mono">
+                Scientific Agronomy Guide
+              </span>
             <h3 className="text-2xl sm:text-3xl font-black text-stone-900">
               {currentGuide.title}
             </h3>

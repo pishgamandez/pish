@@ -3,6 +3,7 @@ import { Product } from '../types';
 import { ProductPackageIllustration } from './ProductPackageIllustration';
 import { X, Phone, CheckCircle2, ShieldCheck, Sparkles, Share2, AlertCircle } from 'lucide-react';
 import { companyInfo } from '../data/company';
+import { PishgamanLogo } from './PishgamanLogo';
 
 interface ProductDetailModalProps {
   product: Product | null;
@@ -37,9 +38,9 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
         {/* Top Header Bar */}
         <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-stone-200 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="w-3 h-3 rounded-full bg-emerald-600 animate-pulse" />
+            <PishgamanLogo variant="icon" size="sm" />
             <div>
-              <div className="text-xs text-stone-500 font-semibold">محصول شرکت پیشگامان پایدار فلات نیک</div>
+              <div className="text-[11px] text-stone-500 font-semibold">محصول شرکت پیشگامان پایدار فلات نیک</div>
               <h3 className="text-lg font-black text-stone-900 leading-tight">
                 {product.nameFa}{' '}
                 <span className="font-mono text-sm text-stone-400 font-bold uppercase mr-1">

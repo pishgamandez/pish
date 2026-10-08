@@ -1,5 +1,6 @@
 import React from 'react';
 import { Product } from '../types';
+import { PishgamanLogo } from './PishgamanLogo';
 
 interface Props {
   product: Product;
@@ -84,7 +85,7 @@ export const ProductPackageIllustration: React.FC<Props> = ({ product, className
         <div className={`w-28 md:w-32 h-36 md:h-40 rounded-2xl p-2.5 flex flex-col justify-between text-center relative border border-white/20 shadow-2xl bg-gradient-to-b ${bodyGrad}`}>
           {/* Parvaz Nahadeh Top Logo Badge */}
           <div className="flex items-center justify-between border-b border-white/20 pb-1">
-            <span className="text-[8px] font-mono text-white/70 tracking-widest uppercase">PISHGAMAN</span>
+            <PishgamanLogo variant="icon" size="sm" />
             <span className="text-[7px] font-bold px-1 py-0.2 rounded text-white bg-white/20">پرواز نهاده</span>
           </div>
 

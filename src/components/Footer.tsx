@@ -1,7 +1,8 @@
 import React from 'react';
 import { companyInfo } from '../data/company';
 import { initialProducts } from '../data/products';
-import { Leaf, Phone, Mail, MapPin, ShieldCheck, HeartHandshake, ArrowUp, Lock } from 'lucide-react';
+import { Leaf, Phone, Mail, MapPin, ShieldCheck, HeartHandshake, ArrowUp, Lock, BookOpen } from 'lucide-react';
+import { PishgamanLogo } from './PishgamanLogo';
 
 interface Props {
   onNavigate: (sectionId: string) => void;
@@ -22,21 +23,13 @@ export const Footer: React.FC<Props> = ({ onNavigate, onOpenAdmin }) => {
           
           {/* Column 1: Company Profile (4 cols) */}
           <div className="lg:col-span-4 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-700 flex items-center justify-center text-white">
-                <Leaf className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-lg font-black text-white">{companyInfo.name}</h3>
-                <div className="text-xs text-emerald-400 font-semibold">برند رسمی: {companyInfo.brand}</div>
-              </div>
-            </div>
+            <PishgamanLogo variant="white" size="lg" />
 
-            <p className="text-xs text-stone-400 leading-relaxed font-light">
+            <p className="text-xs text-stone-400 leading-relaxed font-light pt-2">
               پیشرو در نوآوری، تولید و واردات محصولات جدید و ارائه راه‌حل‌های علمی برای تغذیه خاک، افزایش مقاومت در برابر شوری و ارتقای چشمگیر کیفیت و کمیت محصولات کشاورزی در سراسر کشور.
             </p>
 
-            <div className="pt-2 text-xs text-emerald-400 font-mono tracking-wider">
+            <div className="pt-1 text-xs text-emerald-400 font-mono tracking-wider">
               {companyInfo.sloganEn}
             </div>
 
@@ -116,6 +109,13 @@ export const Footer: React.FC<Props> = ({ onNavigate, onOpenAdmin }) => {
           </div>
 
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => onNavigate('articles')}
+              className="hover:text-stone-300 transition-colors cursor-pointer text-emerald-400 font-semibold"
+            >
+              مقالات علمی و پژوهشی
+            </button>
+            <span>·</span>
             <button
               onClick={() => onNavigate('soil-guide')}
               className="hover:text-stone-300 transition-colors cursor-pointer"

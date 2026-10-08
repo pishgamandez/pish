@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Phone, Menu, X, ShieldCheck, Leaf, Search, Lock } from 'lucide-react';
+import { Phone, Menu, X, ShieldCheck, Leaf, Search, Lock, BookOpen } from 'lucide-react';
 import { companyInfo } from '../data/company';
+import { PishgamanLogo } from './PishgamanLogo';
 
 interface HeaderProps {
   onNavigate: (sectionId: string) => void;
@@ -63,23 +64,11 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={() => handleNavClick('hero')}
           className="flex items-center gap-3 cursor-pointer group select-none"
         >
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center text-white shadow-md shadow-emerald-900/20 group-hover:scale-105 transition-transform">
-            <Leaf className="w-6 h-6 text-emerald-100" />
-          </div>
-          <div className="text-right">
-            <div className="text-lg sm:text-xl font-black text-stone-900 leading-tight tracking-tight flex items-center gap-1.5">
-              <span>پیشگامان فلات نیک</span>
-            </div>
-            <div className="text-[11px] text-emerald-700 font-semibold tracking-wide flex items-center gap-1">
-              <span>پرواز نهاده</span>
-              <span className="text-stone-400">·</span>
-              <span className="font-mono text-[10px] text-stone-500 uppercase">Pishgaman Agri-Tech</span>
-            </div>
-          </div>
+          <PishgamanLogo variant="full" size="md" />
         </div>
 
         {/* Desktop Navigation Links */}
-        <nav className="hidden lg:flex items-center gap-7 text-sm font-semibold text-stone-700">
+        <nav className="hidden lg:flex items-center gap-6 text-sm font-semibold text-stone-700">
           <button
             onClick={() => handleNavClick('hero')}
             className={`transition-colors hover:text-emerald-700 cursor-pointer ${
@@ -94,7 +83,16 @@ export const Header: React.FC<HeaderProps> = ({
               activeSection === 'products' ? 'text-emerald-700 font-bold' : ''
             }`}
           >
-            کاتالوگ محصولات (۱۶ گانه)
+            محصولات (۱۶ گانه)
+          </button>
+          <button
+            onClick={() => handleNavClick('articles')}
+            className={`transition-colors hover:text-emerald-700 cursor-pointer flex items-center gap-1.5 ${
+              activeSection === 'articles' ? 'text-emerald-700 font-black' : ''
+            }`}
+          >
+            <BookOpen className="w-3.5 h-3.5 text-emerald-600" />
+            <span>مقالات علمی</span>
           </button>
           <button
             onClick={() => handleNavClick('soil-guide')}
@@ -102,7 +100,7 @@ export const Header: React.FC<HeaderProps> = ({
               activeSection === 'soil-guide' ? 'text-emerald-700 font-bold' : ''
             }`}
           >
-            راهنمای علمی pH و EC
+            راهنمای pH و EC
           </button>
           <button
             onClick={() => handleNavClick('about')}
@@ -110,7 +108,7 @@ export const Header: React.FC<HeaderProps> = ({
               activeSection === 'about' ? 'text-emerald-700 font-bold' : ''
             }`}
           >
-            درباره شرکت
+            درباره ما
           </button>
           <button
             onClick={() => handleNavClick('consult')}
@@ -201,6 +199,13 @@ export const Header: React.FC<HeaderProps> = ({
               className="w-full text-right py-2.5 px-3 rounded-lg text-sm font-bold text-stone-800 hover:bg-emerald-50 hover:text-emerald-700"
             >
               کاتالوگ ۱۶ محصول اختصاصی
+            </button>
+            <button
+              onClick={() => handleNavClick('articles')}
+              className="w-full text-right py-2.5 px-3 rounded-lg text-sm font-bold text-stone-800 hover:bg-emerald-50 hover:text-emerald-700 flex items-center justify-between"
+            >
+              <span>مقالات علمی و رفرنس‌دار</span>
+              <BookOpen className="w-4 h-4 text-emerald-600" />
             </button>
             <button
               onClick={() => handleNavClick('soil-guide')}

@@ -1,6 +1,7 @@
 import React from 'react';
 import { companyInfo } from '../data/company';
 import { Award, ShieldCheck, HeartHandshake, TrendingUp, Users, Leaf, CheckCircle2 } from 'lucide-react';
+import { PishgamanLogo } from './PishgamanLogo';
 
 export const AboutSection: React.FC = () => {
   return (
@@ -15,8 +16,11 @@ export const AboutSection: React.FC = () => {
               <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl" />
               
               <div className="space-y-4 relative z-10">
-                <div className="inline-block px-3 py-1 bg-white/10 rounded-full text-xs font-mono text-emerald-300">
-                  {companyInfo.sloganEn}
+                <div className="flex items-center justify-between border-b border-white/15 pb-4">
+                  <PishgamanLogo variant="white" size="lg" />
+                  <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-mono text-emerald-300">
+                    {companyInfo.sloganEn}
+                  </span>
                 </div>
                 
                 <h3 className="text-2xl font-black text-white">
