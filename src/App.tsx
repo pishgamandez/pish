@@ -20,12 +20,44 @@ export default function App() {
   const [products, setProducts] = useState<Product[]>(() => {
     try {
       const saved = localStorage.getItem('pishgaman_custom_products');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed: Product[] = JSON.parse(saved);
+        return parsed.map(item => {
+          // Fallback to default initial image ONLY if the item has no image at all
+          const init = initialProducts.find(p => p.id === item.id);
+          if (init?.imageUrl && !item.imageUrl) {
+            return { ...item, imageUrl: init.imageUrl };
+          }
+          return item;
+        });
+      }
     } catch {
       // ignore
     }
     return initialProducts;
   });
+
+  // Sync with server-stored products
+  useEffect(() => {
+    fetch('/api/products')
+      .then(res => {
+        if (!res.ok) throw new Error('Network response was not ok');
+        return res.json();
+      })
+      .then(serverProducts => {
+        if (Array.isArray(serverProducts) && serverProducts.length > 0) {
+          setProducts(serverProducts);
+          try {
+            localStorage.setItem('pishgaman_custom_products', JSON.stringify(serverProducts));
+          } catch {
+            // ignore
+          }
+        }
+      })
+      .catch(() => {
+        // Fallback gracefully to localStorage
+      });
+  }, []);
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [adminOpen, setAdminOpen] = useState(false);
@@ -177,6 +209,18 @@ export default function App() {
         products={products}
         onUpdateProducts={(updated) => {
           setProducts(updated);
+          try {
+            localStorage.setItem('pishgaman_custom_products', JSON.stringify(updated));
+          } catch (e) {
+            console.warn('LocalStorage save failed:', e);
+          }
+          fetch('/api/products', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updated)
+          }).catch(err => {
+            console.error('Failed to sync products to server:', err);
+          });
           if (selectedProduct) {
             const found = updated.find(p => p.id === selectedProduct.id);
             if (found) setSelectedProduct(found);

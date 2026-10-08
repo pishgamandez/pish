@@ -16,7 +16,7 @@ export const ProductPackageIllustration: React.FC<Props> = ({ product, className
     setImageError(false);
   }, [product.imageUrl]);
 
-  const heightClass = size === 'sm' ? 'h-36' : size === 'lg' ? 'h-80' : 'h-52';
+  const heightClass = size === 'sm' ? 'h-36' : size === 'lg' ? 'h-88' : 'h-56';
 
   if (product.imageUrl && product.imageUrl.trim() !== '' && !imageError) {
     return (
@@ -26,8 +26,9 @@ export const ProductPackageIllustration: React.FC<Props> = ({ product, className
         <img
           src={product.imageUrl}
           alt={product.nameFa}
-          className="w-full h-full object-contain p-3 drop-shadow-md transition-transform duration-300 group-hover:scale-105"
+          className="w-full h-full object-contain p-1.5 drop-shadow-md transition-transform duration-300 group-hover:scale-105"
           loading="lazy"
+          referrerPolicy="no-referrer"
           onError={() => setImageError(true)}
         />
         {product.badge && (

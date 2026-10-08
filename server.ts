@@ -1,6 +1,7 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import { initialProducts } from './src/data/products';
@@ -14,7 +15,32 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Ensure upload directory exists
+const uploadsDir = path.resolve(__dirname, 'public', 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsDir));
+app.use('/assets', express.static(path.resolve(__dirname, 'public', 'assets')));
+
+// Ensure data persistence directory exists
+const dataDir = path.resolve(__dirname, 'data');
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+const productsFilePath = path.resolve(dataDir, 'products.json');
+
+// Initialize products file if it doesn't exist
+if (!fs.existsSync(productsFilePath)) {
+  try {
+    fs.writeFileSync(productsFilePath, JSON.stringify(initialProducts, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Failed to initialize products.json:', err);
+  }
+}
 
 // In-memory consultations storage
 const consultations: any[] = [];
@@ -111,6 +137,89 @@ app.post('/api/consultations', (req, res) => {
 
 app.get('/api/consultations', (req, res) => {
   res.json(consultations);
+});
+
+// Products API: Get list of products
+app.get('/api/products', (req, res) => {
+  try {
+    if (fs.existsSync(productsFilePath)) {
+      const data = fs.readFileSync(productsFilePath, 'utf-8');
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return res.json(parsed);
+      }
+    }
+  } catch (err) {
+    console.error('Error reading products.json:', err);
+  }
+  return res.json(initialProducts);
+});
+
+// Products API: Save products list permanently
+app.post('/api/products', (req, res) => {
+  try {
+    const products = req.body;
+    if (!Array.isArray(products)) {
+      return res.status(400).json({ error: 'فرمت داده نامعتبر است.' });
+    }
+    fs.writeFileSync(productsFilePath, JSON.stringify(products, null, 2), 'utf-8');
+    return res.json({ success: true, count: products.length });
+  } catch (err) {
+    console.error('Error writing products.json:', err);
+    return res.status(500).json({ error: 'خطا در ذخیره‌سازی داده‌های محصول.' });
+  }
+});
+
+// Direct Image Upload API: saves user's raw file without AI modification
+app.post('/api/upload', (req, res) => {
+  try {
+    const { data, filename } = req.body;
+    if (!data || typeof data !== 'string') {
+      return res.status(400).json({ error: 'اطلاعات تصویری ارسال نشده است.' });
+    }
+
+    let buffer: Buffer;
+    let ext = 'jpg';
+
+    // Parse data URL scheme
+    const matches = data.match(/^data:image\/([a-zA-Z0-9\+\-\.]+);base64,(.+)$/);
+    if (matches && matches.length === 3) {
+      const rawExt = matches[1].toLowerCase();
+      if (rawExt.includes('png')) ext = 'png';
+      else if (rawExt.includes('webp')) ext = 'webp';
+      else if (rawExt.includes('svg')) ext = 'svg';
+      else if (rawExt.includes('gif')) ext = 'gif';
+      else ext = 'jpg';
+      buffer = Buffer.from(matches[2], 'base64');
+    } else {
+      buffer = Buffer.from(data.replace(/^data:[^;]+;base64,/, ''), 'base64');
+    }
+
+    if (buffer.length === 0) {
+      return res.status(400).json({ error: 'فایل تصویری خالی یا نامعتبر است.' });
+    }
+
+    const timestamp = Date.now();
+    const safeBase = (filename || 'product')
+      .replace(/\.[^/.]+$/, '')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .slice(0, 30);
+    const uniqueFilename = `${safeBase}_${timestamp}.${ext}`;
+    const targetFilePath = path.resolve(uploadsDir, uniqueFilename);
+
+    fs.writeFileSync(targetFilePath, buffer);
+
+    const publicUrl = `/uploads/${uniqueFilename}`;
+    return res.json({
+      success: true,
+      url: publicUrl,
+      size: buffer.length,
+      filename: uniqueFilename
+    });
+  } catch (err: any) {
+    console.error('Direct upload error:', err);
+    return res.status(500).json({ error: 'خطا در بارگذاری و ذخیره فایل تصویر.' });
+  }
 });
 
 // Dev or Production Serving

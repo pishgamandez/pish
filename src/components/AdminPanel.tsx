@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Product, ConsultationInquiry, DosageRate } from '../types';
-import { X, Plus, Trash2, Edit3, Save, Check, RefreshCw, Upload, Image, MessageSquare, Shield, Lock, KeyRound, AlertTriangle, Eye, EyeOff } from 'lucide-react';
+import { 
+  X, Plus, Trash2, Edit3, Save, Check, RefreshCw, Upload, Image as ImageIcon, 
+  MessageSquare, Shield, Lock, KeyRound, AlertTriangle, Eye, EyeOff, 
+  CheckCircle2, Sparkles, Maximize2, FileCheck, AlertCircle
+} from 'lucide-react';
 import { companyInfo } from '../data/company';
 
 interface AdminPanelProps {
@@ -37,7 +41,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const [activeTab, setActiveTab] = useState<'products' | 'inquiries' | 'settings'>('products');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [imageCompressing, setImageCompressing] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [uploadSuccessMessage, setUploadSuccessMessage] = useState<string | null>(null);
+  const [uploadErrorMessage, setUploadErrorMessage] = useState<string | null>(null);
+  const [uploadedImageMeta, setUploadedImageMeta] = useState<{ name?: string; size?: string; dimensions?: string } | null>(null);
+  const [previewModalUrl, setPreviewModalUrl] = useState<string | null>(null);
+  const [saveToast, setSaveToast] = useState<string | null>(null);
   const [inquiries, setInquiries] = useState<ConsultationInquiry[]>([]);
 
   // Change password states
@@ -121,7 +130,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     });
   };
 
-  const handleSaveProduct = (e: React.FormEvent) => {
+  const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
     if (!editingProduct.nameFa.trim()) {
@@ -139,12 +148,31 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
 
     onUpdateProducts(updatedList);
+
     try {
       localStorage.setItem('pishgaman_custom_products', JSON.stringify(updatedList));
     } catch (err) {
-      console.error('Failed to save to localStorage:', err);
+      console.warn('LocalStorage save failed:', err);
     }
+
+    // Direct permanent sync with server
+    try {
+      await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedList)
+      });
+    } catch (err) {
+      console.error('Failed to sync products to server:', err);
+    }
+
+    setSaveToast(`محصول «${editingProduct.nameFa}» با موفقیت ذخیره و به‌روزرسانی شد.`);
+    setTimeout(() => setSaveToast(null), 4000);
+
     setEditingProduct(null);
+    setUploadSuccessMessage(null);
+    setUploadErrorMessage(null);
+    setUploadedImageMeta(null);
   };
 
   const handleDeleteProduct = (id: string) => {
@@ -156,64 +184,103 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       } catch {
         // ignore
       }
+      fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated)
+      }).catch(() => {});
     }
   };
 
+  // Direct upload of the user's exact file without any AI alterations or canvas re-compression
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !editingProduct) return;
 
-    setImageCompressing(true);
+    setUploadErrorMessage(null);
+    setUploadSuccessMessage(null);
+    setIsUploadingImage(true);
+
+    const formattedSize = file.size > 1024 * 1024
+      ? `${(file.size / (1024 * 1024)).toFixed(2)} مگابایت`
+      : `${Math.round(file.size / 1024)} کیلوبایت`;
+
     const reader = new FileReader();
 
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        // Automatically resize and optimize image to max 900x900
-        const maxDimension = 900;
-        let width = img.width;
-        let height = img.height;
+    reader.onload = async (event) => {
+      const dataUrl = event.target?.result as string;
+      if (!dataUrl) {
+        setIsUploadingImage(false);
+        setUploadErrorMessage('خطا در خواندن فایل تصویری.');
+        return;
+      }
 
-        if (width > maxDimension || height > maxDimension) {
-          if (width > height) {
-            height = Math.round((height * maxDimension) / width);
-            width = maxDimension;
-          } else {
-            width = Math.round((width * maxDimension) / height);
-            height = maxDimension;
+      // Check image dimensions using standard browser Image object
+      const tempImg = new window.Image();
+      tempImg.onload = async () => {
+        const dimensions = `${tempImg.naturalWidth} × ${tempImg.naturalHeight} پیکسل`;
+
+        // Direct upload to server to save raw original file to disk without touching pixels
+        try {
+          const res = await fetch('/api/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              data: dataUrl,
+              filename: file.name
+            })
+          });
+
+          if (res.ok) {
+            const result = await res.json();
+            if (result.url) {
+              setEditingProduct(prev => prev ? {
+                ...prev,
+                imageUrl: result.url
+              } : null);
+              setUploadedImageMeta({
+                name: file.name,
+                size: formattedSize,
+                dimensions
+              });
+              setUploadSuccessMessage(`عکس اصلی با موفقیت در سایت ذخیره شد (اندازه: ${formattedSize} | ابعاد: ${dimensions}) - کیفیت ۱۰۰٪ دست‌نخورده بدون تغییر هوش مصنوعی.`);
+              setIsUploadingImage(false);
+              return;
+            }
           }
+        } catch (serverErr) {
+          console.warn('Direct upload server error, falling back to data URL:', serverErr);
         }
 
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          // Compress to JPEG 0.85 (~60-120KB)
-          const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
-          setEditingProduct(prev => prev ? {
-            ...prev,
-            imageUrl: optimizedDataUrl
-          } : null);
-        } else {
-          setEditingProduct(prev => prev ? {
-            ...prev,
-            imageUrl: event.target?.result as string
-          } : null);
-        }
-        setImageCompressing(false);
+        // Reliable fallback: use exact original file dataUrl
+        setEditingProduct(prev => prev ? {
+          ...prev,
+          imageUrl: dataUrl
+        } : null);
+        setUploadedImageMeta({
+          name: file.name,
+          size: formattedSize,
+          dimensions
+        });
+        setUploadSuccessMessage(`عکس اصلی با موفقیت روی محصول اعمال شد (${dimensions}) - بدون هیچ تغییری.`);
+        setIsUploadingImage(false);
       };
 
-      img.onerror = () => {
-        setImageCompressing(false);
+      tempImg.onerror = () => {
+        setEditingProduct(prev => prev ? {
+          ...prev,
+          imageUrl: dataUrl
+        } : null);
+        setIsUploadingImage(false);
+        setUploadSuccessMessage(`عکس فایل با موفقیت ذخیره شد (${formattedSize}).`);
       };
 
-      img.src = event.target?.result as string;
+      tempImg.src = dataUrl;
     };
 
     reader.onerror = () => {
-      setImageCompressing(false);
+      setIsUploadingImage(false);
+      setUploadErrorMessage('خطا در بارگذاری فایل از حافظه دستگاه.');
     };
 
     reader.readAsDataURL(file);
@@ -440,60 +507,154 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </div>
 
                     {/* Image Upload / URL Section */}
-                    <div className="bg-white p-5 rounded-2xl border border-stone-200 space-y-3">
-                      <label className="block text-xs font-bold text-stone-800">
-                        تصویر محصول (آپلود عکس از دستگاه یا وارد کردن لینک اینترنتی):
-                      </label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
-                        <div>
+                    <div className="bg-white p-5 rounded-2xl border border-stone-200 space-y-4 shadow-xs">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-100 pb-3">
+                        <div className="flex items-center gap-2">
+                          <ImageIcon className="w-4 h-4 text-emerald-700" />
+                          <div>
+                            <label className="block text-xs font-black text-stone-900">
+                              آپلود مستقیم تصویر محصول (کیفیت اصلی فایل - بدون تغییر هوش مصنوعی)
+                            </label>
+                            <span className="text-[11px] text-stone-500 block">
+                              عکس شما مستقیماً با وضوح و ابعاد اورجینال آپلود شده و بدون هیچ تغییری روی سایت قرار می‌گیرد.
+                            </span>
+                          </div>
+                        </div>
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 self-start sm:self-auto">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <span>بدون دخالت AI</span>
+                        </span>
+                      </div>
+
+                      {/* Main File Upload Box */}
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-stretch">
+                        <div className="sm:col-span-8 flex flex-col justify-center border-2 border-dashed border-stone-300 hover:border-emerald-600 rounded-2xl p-4 transition-colors bg-stone-50/50 hover:bg-emerald-50/20 text-center">
                           <input
+                            id="product-image-file-input"
                             type="file"
                             accept="image/*"
                             onChange={handleImageFileChange}
-                            className="block w-full text-xs text-stone-500 file:mr-0 file:ml-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-emerald-100 file:text-emerald-800 hover:file:bg-emerald-200 cursor-pointer"
+                            className="hidden"
                           />
-                          <span className="text-[10px] text-stone-400 mt-1 block">
-                            عکس انتخابی مستقیماً در کاتالوگ و صفحه محصول نمایش داده می‌شود.
-                          </span>
+                          <label
+                            htmlFor="product-image-file-input"
+                            className="cursor-pointer flex flex-col items-center justify-center gap-2"
+                          >
+                            <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center">
+                              <Upload className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <span className="text-xs font-bold text-stone-800 hover:text-emerald-700 block">
+                                برای انتخاب عکس از کامپیوتر یا گوشی کلیک کنید
+                              </span>
+                              <span className="text-[10px] text-stone-400 mt-0.5 block">
+                                پشتیبانی از فرمت‌های JPG, PNG, WEBP با حفظ ۱۰۰٪ شفافیت و کیفیت اورجینال
+                              </span>
+                            </div>
+                          </label>
                         </div>
-                        <div>
+
+                        {/* Direct URL Alternative */}
+                        <div className="sm:col-span-4 flex flex-col justify-center space-y-1.5 bg-stone-50 p-3 rounded-2xl border border-stone-200">
+                          <label className="text-[10px] font-bold text-stone-600 block">
+                            یا درج مستقیم آدرس اینترنتی (URL):
+                          </label>
                           <input
                             type="text"
-                            placeholder="یا درج آدرس مستقیم تصویر (URL)..."
+                            placeholder="https://... یا /assets/images/..."
                             value={editingProduct.imageUrl || ''}
                             onChange={(e) => setEditingProduct({ ...editingProduct, imageUrl: e.target.value })}
-                            className="w-full text-xs px-3 py-2.5 rounded-xl border border-stone-300 focus:ring-2 focus:ring-emerald-700 font-mono text-left"
+                            className="w-full text-xs px-2.5 py-2 rounded-xl border border-stone-300 focus:ring-2 focus:ring-emerald-700 font-mono text-left bg-white"
                             dir="ltr"
                           />
+                          <span className="text-[9px] text-stone-400 block">
+                            اگر عکس در هاست یا سایت دیگری قرار دارد
+                          </span>
                         </div>
                       </div>
-                      {imageCompressing && (
-                        <div className="mt-2 flex items-center gap-2 p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs font-bold text-emerald-800">
+
+                      {/* Loading status */}
+                      {isUploadingImage && (
+                        <div className="flex items-center gap-2 p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs font-bold text-emerald-800 animate-pulse">
                           <span className="inline-block w-4 h-4 border-2 border-emerald-700 border-t-transparent rounded-full animate-spin" />
-                          <span>در حال فشرده‌سازی و بهینه‌سازی خودکار تصویر برای ذخیره‌سازی...</span>
+                          <span>در حال آپلود و ذخیره‌سازی فایل اصلی بدون دستکاری...</span>
                         </div>
                       )}
 
-                      {editingProduct.imageUrl && !imageCompressing && (
-                        <div className="mt-2 flex items-center justify-between gap-3 bg-stone-50 p-2.5 rounded-xl border border-stone-200">
-                          <div className="flex items-center gap-3">
-                            <img
-                              src={editingProduct.imageUrl}
-                              alt="پیش‌نمایش تصویر محصول"
-                              className="w-14 h-14 object-contain rounded-lg bg-white border border-stone-200 p-1"
-                            />
-                            <div>
-                              <span className="text-xs text-emerald-700 font-bold block">تصویر تایید و بهینه‌سازی شد</span>
-                              <span className="text-[10px] text-stone-500">این عکس بر روی کارت محصول و کاتالوگ نمایش داده می‌شود.</span>
+                      {/* Success Alert */}
+                      {uploadSuccessMessage && (
+                        <div className="flex items-center gap-2 p-2.5 bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-200 text-[11px] font-medium">
+                          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                          <span>{uploadSuccessMessage}</span>
+                        </div>
+                      )}
+
+                      {/* Error Alert */}
+                      {uploadErrorMessage && (
+                        <div className="flex items-center gap-2 p-2.5 bg-rose-50 text-rose-800 rounded-xl border border-rose-200 text-[11px] font-medium">
+                          <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                          <span>{uploadErrorMessage}</span>
+                        </div>
+                      )}
+
+                      {/* Image Preview & Controls */}
+                      {editingProduct.imageUrl && !isUploadingImage && (
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-stone-50 p-3.5 rounded-2xl border border-stone-200">
+                          <div className="flex items-center gap-3 w-full sm:w-auto">
+                            <div 
+                              onClick={() => setPreviewModalUrl(editingProduct.imageUrl || null)}
+                              className="relative cursor-pointer group shrink-0"
+                              title="مشاهده اندازه بزرگ"
+                            >
+                              <img
+                                src={editingProduct.imageUrl}
+                                alt="پیش‌نمایش تصویر محصول"
+                                className="w-16 h-16 object-contain rounded-xl bg-white border border-stone-300 p-1 shadow-xs group-hover:scale-105 transition-transform"
+                              />
+                              <div className="absolute inset-0 bg-stone-900/30 opacity-0 group-hover:opacity-100 rounded-xl flex items-center justify-center text-white transition-opacity">
+                                <Maximize2 className="w-4 h-4" />
+                              </div>
+                            </div>
+                            <div className="space-y-0.5">
+                              <span className="text-xs text-stone-900 font-bold block flex items-center gap-1.5">
+                                <FileCheck className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>تصویر اصلی برای این محصول تنظیم شد</span>
+                              </span>
+                              <span className="text-[10px] text-stone-500 block">
+                                {uploadedImageMeta 
+                                  ? `${uploadedImageMeta.name || 'فایل'} · ${uploadedImageMeta.dimensions || ''} · ${uploadedImageMeta.size || ''}`
+                                  : 'این تصویر بدون تغییر روی کارت محصول و کاتالوگ نمایش داده می‌شود.'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setPreviewModalUrl(editingProduct.imageUrl || null)}
+                                className="text-[10px] text-emerald-700 hover:text-emerald-900 font-bold inline-flex items-center gap-0.5 mt-0.5 cursor-pointer"
+                              >
+                                <Eye className="w-3 h-3" />
+                                <span>مشاهده تصویر در اندازه واقعی</span>
+                              </button>
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => setEditingProduct({ ...editingProduct, imageUrl: '' })}
-                            className="text-xs text-rose-600 hover:text-rose-800 font-bold hover:bg-rose-50 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
-                          >
-                            حذف تصویر
-                          </button>
+
+                          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                            <label
+                              htmlFor="product-image-file-input"
+                              className="text-xs text-stone-700 hover:text-stone-900 font-bold bg-white hover:bg-stone-100 border border-stone-300 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
+                            >
+                              تعویض عکس
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingProduct({ ...editingProduct, imageUrl: '' });
+                                setUploadedImageMeta(null);
+                                setUploadSuccessMessage(null);
+                              }}
+                              className="text-xs text-rose-600 hover:text-rose-800 font-bold hover:bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-200 transition-colors cursor-pointer"
+                            >
+                              حذف تصویر
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -773,10 +934,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             <td className="py-3 px-4 text-stone-600">{p.appearance}</td>
                             <td className="py-3 px-4">
                               {p.imageUrl ? (
-                                <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 font-bold">
-                                  <Check className="w-3.5 h-3.5" />
-                                  <span>عکس اختصاصی</span>
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <img
+                                    src={p.imageUrl}
+                                    alt={p.nameFa}
+                                    onClick={() => setPreviewModalUrl(p.imageUrl || null)}
+                                    className="w-9 h-9 rounded-lg object-contain bg-white border border-stone-200 p-0.5 cursor-pointer hover:border-emerald-500 shadow-2xs"
+                                    title="مشاهده اندازه بزرگ"
+                                  />
+                                  <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 font-bold">
+                                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                    <span>عکس اختصاصی</span>
+                                  </span>
+                                </div>
                               ) : (
                                 <span className="text-[11px] text-stone-400">طرح وکتور پیش‌فرض</span>
                               )}
@@ -911,6 +1081,48 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         )}
 
       </div>
+
+      {/* Fullscreen Original Image Preview Lightbox */}
+      {previewModalUrl && (
+        <div 
+          onClick={() => setPreviewModalUrl(null)}
+          className="fixed inset-0 z-60 bg-stone-950/85 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in duration-150"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()} 
+            className="relative max-w-3xl max-h-[90vh] bg-white rounded-3xl p-4 shadow-2xl flex flex-col items-center cursor-default"
+          >
+            <div className="w-full flex items-center justify-between pb-3 border-b border-stone-200">
+              <span className="text-xs font-bold text-stone-800">
+                پیش‌نمایش تصویر با کیفیت اصلی فایل (بدون تغییر هوش مصنوعی)
+              </span>
+              <button
+                type="button"
+                onClick={() => setPreviewModalUrl(null)}
+                className="p-1.5 text-stone-500 hover:text-stone-900 rounded-xl hover:bg-stone-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="mt-4 max-h-[75vh] overflow-auto flex items-center justify-center bg-stone-100/60 rounded-2xl p-4 border border-stone-200">
+              <img
+                src={previewModalUrl}
+                alt="نمای کامل محصول"
+                className="max-h-[65vh] w-auto object-contain rounded-xl drop-shadow-md"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Save Success Toast */}
+      {saveToast && (
+        <div className="fixed bottom-6 right-6 z-60 bg-emerald-900 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 text-xs font-bold border border-emerald-700 animate-in slide-in-from-bottom-4 duration-200">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+          <span>{saveToast}</span>
+        </div>
+      )}
+
     </div>
   );
 };
