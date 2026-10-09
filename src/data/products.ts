@@ -157,7 +157,8 @@ export const initialProducts: Product[] = [
         "timing": "فصل رشد فعال",
         "rate": "۱ تا ۲ لیتر در هکتار"
       }
-    ]
+    ],
+    "imageUrl": "./assets/images/products/jumper.jpg"
   },
   {
     "id": "full-charger",
