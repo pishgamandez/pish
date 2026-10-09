@@ -746,7 +746,8 @@ export const initialProducts: Product[] = [
         "timing": "در طول مراحل رویشی و میوه‌دهی",
         "rate": "۱۵-۲۰ لیتر در هکتار"
       }
-    ]
+    ],
+    "imageUrl": "./assets/images/products/angela.jpg"
   },
   {
     "id": "ph-best",
