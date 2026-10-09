@@ -236,7 +236,8 @@ export const initialProducts: Product[] = [
         "method": "کودآبیاری",
         "rate": "۲۰۰ تا ۲۵۰ گرم در ۱۰۰۰ متر مربع"
       }
-    ]
+    ],
+    "imageUrl": "./assets/images/products/red-full.jpg"
   },
   {
     "id": "doping",
