@@ -199,7 +199,8 @@ export const initialProducts: Product[] = [
         "method": "محلول‌پاشی",
         "rate": "۱.۵ تا ۲ لیتر در ۱۰۰۰ لیتر آب"
       }
-    ]
+    ],
+    "imageUrl": "./assets/images/products/full-charger.jpg"
   },
   {
     "id": "red-full",
