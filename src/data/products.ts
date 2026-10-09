@@ -327,7 +327,8 @@ export const initialProducts: Product[] = [
         "method": "همراه آب آبیاری",
         "rate": "۵-۱۰ لیتر در هکتار"
       }
-    ]
+    ],
+    "imageUrl": "./assets/images/products/siligard.jpg"
   },
   {
     "id": "stormy",
