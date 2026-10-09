@@ -544,7 +544,8 @@ export const initialProducts: Product[] = [
         "timing": "شروع تشکیل میوه",
         "rate": "۵ کیلوگرم در هکتار"
       }
-    ]
+    ],
+    "imageUrl": "./assets/images/products/tiger-k.jpg"
   },
   {
     "id": "tiger-p",
