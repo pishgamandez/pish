@@ -41,7 +41,8 @@ export const initialProducts: Product[] = [
         "method": "همراه آب آبیاری",
         "rate": "۳-۵ کیلوگرم در هکتار"
       }
-    ]
+    ],
+    "imageUrl": "./assets/images/products/challenger.jpg"
   },
   {
     "id": "humifarm",
@@ -155,7 +156,8 @@ export const initialProducts: Product[] = [
         "timing": "فصل رشد فعال",
         "rate": "۱ تا ۲ لیتر در هکتار"
       }
-    ]
+    ],
+    "imageUrl": "./assets/images/products/jumper.jpg"
   },
   {
     "id": "full-charger",
