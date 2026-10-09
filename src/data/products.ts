@@ -602,7 +602,8 @@ export const initialProducts: Product[] = [
         "timing": "ابتدای فصل رشد - قبل از گلدهی",
         "rate": "۲ تا ۱۰ کیلوگرم در هکتار"
       }
-    ]
+    ],
+    "imageUrl": "./assets/images/products/tiger-p.jpg"
   },
   {
     "id": "sulmax",
