@@ -779,6 +779,7 @@ export const initialProducts: Product[] = [
         "timing": "ماهیانه یکبار",
         "rate": "۱ تا ۲ لیتر در ۱۰۰۰ متر مربع"
       }
-    ]
+    ],
+    "imageUrl": "./assets/images/products/ph-best.jpg"
   }
 ];
