@@ -464,7 +464,8 @@ export const initialProducts: Product[] = [
         "timing": "بعد از تشکیل میوه",
         "rate": "۲ تا ۳ لیتر در ۱۰۰۰ لیتر آب"
       }
-    ]
+    ],
+    "imageUrl": "./assets/images/products/top-star.jpg"
   },
   {
     "id": "tiger-k",
