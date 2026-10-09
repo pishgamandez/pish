@@ -413,7 +413,8 @@ export const initialProducts: Product[] = [
         "timing": "هر دو هفته از اوایل رشد تا گلدهی",
         "rate": "۲ تا ۳ لیتر در ۱۰۰۰ لیتر آب"
       }
-    ]
+    ],
+    "imageUrl": "./assets/images/products/fiction.jpg"
   },
   {
     "id": "top-star",
