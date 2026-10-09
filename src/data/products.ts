@@ -368,7 +368,8 @@ export const initialProducts: Product[] = [
         "timing": "دوره میوه‌دهی",
         "rate": "۴-۵ لیتر در هکتار"
       }
-    ]
+    ],
+    "imageUrl": "./assets/images/products/stormy.jpg"
   },
   {
     "id": "fiction",
