@@ -705,7 +705,8 @@ export const initialProducts: Product[] = [
         "timing": "تکرار متناوب در مراحل آبیاری",
         "rate": "۲-۳ لیتر در هکتار در هر آبیاری"
       }
-    ]
+    ],
+    "imageUrl": "./assets/images/products/salt-stop.jpg"
   },
   {
     "id": "angela",
