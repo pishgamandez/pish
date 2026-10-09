@@ -276,7 +276,8 @@ export const initialProducts: Product[] = [
         "timing": "رشد رویشی، قبل و بعد از گلدهی",
         "rate": "۱-۲ لیتر در ۱۰۰۰ لیتر آب"
       }
-    ]
+    ],
+    "imageUrl": "./assets/images/products/doping.jpg"
   },
   {
     "id": "siligard",
