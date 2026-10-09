@@ -654,7 +654,8 @@ export const initialProducts: Product[] = [
         "timing": "۲-۴ نوبت به فاصله ۷ تا ۱۰ روز",
         "rate": "۵-۸ لیتر در هکتار"
       }
-    ]
+    ],
+    "imageUrl": "./assets/images/products/sulmax.jpg"
   },
   {
     "id": "salt-stop",
