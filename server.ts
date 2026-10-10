@@ -97,7 +97,7 @@ function syncGitPush(): { success: boolean; message: string; output?: string } {
     const repo = config.repo.trim() || 'pishgamandez/pishgaman';
     const branch = config.branch.trim() || 'main';
 
-    const remoteUrl = `https://${token}@github.com/${repo}.git`;
+    const remoteUrl = `https://x-access-token:${token}@github.com/${repo}.git`;
     try {
       execSync('git remote remove origin', { stdio: 'ignore' });
     } catch {}

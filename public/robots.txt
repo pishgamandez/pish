@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+
+Sitemap: https://pishgamandez.github.io/pishgaman/sitemap.xml

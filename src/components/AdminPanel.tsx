@@ -7,6 +7,14 @@ import {
   GitBranch, ExternalLink, Globe
 } from 'lucide-react';
 import { companyInfo } from '../data/company';
+import {
+  getClientGitHubConfig,
+  saveClientGitHubConfig,
+  testGitHubConnection,
+  getLatestGitHubCommit,
+  syncProductsDirectToGitHub,
+  uploadImageDirectToGitHub
+} from '../utils/githubApi';
 
 interface AdminPanelProps {
   isOpen: boolean;
@@ -81,18 +89,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [githubPushResult, setGithubPushResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const fetchGitHubStatus = async () => {
+    // 1. Load from client localStorage (instant on GitHub Pages)
+    const conf = getClientGitHubConfig();
+    const hasToken = Boolean(conf.token && conf.token.trim());
+    const tokenPreview = hasToken ? `${conf.token.slice(0, 4)}••••${conf.token.slice(-4)}` : '';
+
+    setGithubRepoInput(conf.repo || 'pishgamandez/pishgaman');
+    setGithubBranchInput(conf.branch || 'main');
+    setGithubAutoPushInput(conf.autoPush);
+
+    setGithubConfig({
+      configured: hasToken,
+      repo: conf.repo || 'pishgamandez/pishgaman',
+      branch: conf.branch || 'main',
+      autoPush: conf.autoPush,
+      hasToken,
+      tokenPreview,
+      lastCommit: ''
+    });
+
+    // 2. Fetch latest commit directly from GitHub REST API
     try {
-      const res = await fetch('/api/github/status');
-      if (res.ok) {
-        const data = await res.json();
-        setGithubConfig(data);
-        if (data.repo) setGithubRepoInput(data.repo);
-        if (data.branch) setGithubBranchInput(data.branch);
-        if (data.autoPush !== undefined) setGithubAutoPushInput(data.autoPush);
+      const commit = await getLatestGitHubCommit(conf.token, conf.repo);
+      if (commit) {
+        setGithubConfig(prev => ({ ...prev, lastCommit: commit }));
       }
-    } catch (err) {
-      console.warn('GitHub status fetch ignored:', err);
-    }
+    } catch {}
   };
 
   useEffect(() => {
@@ -198,25 +220,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       console.warn('LocalStorage save failed:', err);
     }
 
-    // Direct permanent sync with server and Git/GitHub
+    // Direct permanent sync with client-side GitHub REST API
+    const ghConf = getClientGitHubConfig();
+    let toastNote = `محصول «${editingProduct.nameFa}» ذخیره شد.`;
+    if (ghConf.autoPush && ghConf.token) {
+      syncProductsDirectToGitHub(updatedList, `admin: update product ${editingProduct.nameFa}`)
+        .then(res => {
+          if (res.ok) {
+            setSaveToast(`محصول «${editingProduct.nameFa}» ذخیره و مستقیماً به گیت‌هاب ارسال (Push) شد.`);
+            fetchGitHubStatus();
+          }
+        })
+        .catch(() => {});
+    }
+
+    // Also attempt server sync if running on local dev server
     try {
-      const res = await fetch('/api/products', {
+      fetch('/api/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedList)
-      });
-      if (res.ok) {
-        const resData = await res.json();
-        if (resData.gitPushed) {
-          setSaveToast(`محصول «${editingProduct.nameFa}» ذخیره و مستقیماً به گیت‌هاب ارسال (Push) شد.`);
-        } else {
-          setSaveToast(`محصول «${editingProduct.nameFa}» در کدهای پروژه و گیت ثبت گردید.`);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to sync products to server:', err);
-    }
+      }).catch(() => {});
+    } catch {}
 
+    setSaveToast(toastNote);
     setTimeout(() => setSaveToast(null), 4000);
 
     setEditingProduct(null);
@@ -231,21 +258,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       onUpdateProducts(updated);
       try {
         localStorage.setItem('pishgaman_custom_products', JSON.stringify(updated));
-      } catch {
-        // ignore
+      } catch {}
+
+      const ghConf = getClientGitHubConfig();
+      if (ghConf.autoPush && ghConf.token) {
+        syncProductsDirectToGitHub(updated, `admin: delete product ${id}`).catch(() => {});
       }
-      fetch('/api/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updated)
-      }).then(r => r.json()).then(data => {
-        if (data?.gitPushed) {
-          setSaveToast('محصول حذف شد و تغییرات به گیت‌هاب ارسال شد.');
-        } else {
-          setSaveToast('محصول با موفقیت حذف و تغییرات ذخیره شد.');
-        }
-        setTimeout(() => setSaveToast(null), 3000);
-      }).catch(() => {});
+
+      try {
+        fetch('/api/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updated)
+        }).catch(() => {});
+      } catch {}
+
+      setSaveToast('محصول با موفقیت حذف شد.');
+      setTimeout(() => setSaveToast(null), 3000);
     }
   };
 
@@ -265,29 +294,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
-  // GitHub Sync Actions
+  // GitHub Sync Actions - 100% Client-Side Direct GitHub REST API (No backend required)
   const handleSaveGitHubConfig = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch('/api/github/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: githubTokenInput.trim() || undefined,
-          repo: githubRepoInput.trim(),
-          branch: githubBranchInput.trim(),
-          autoPush: githubAutoPushInput
-        })
+      const updated = saveClientGitHubConfig({
+        token: githubTokenInput.trim() || undefined,
+        repo: githubRepoInput.trim() || 'pishgamandez/pishgaman',
+        branch: githubBranchInput.trim() || 'main',
+        autoPush: githubAutoPushInput
       });
-      if (res.ok) {
-        setGithubTokenInput('');
-        setGithubTestResult({ ok: true, message: 'تنظیمات و توکن گیت‌هاب با موفقیت ذخیره شد.' });
-        fetchGitHubStatus();
-        setSaveToast('تنظیمات گیت‌هاب با موفقیت ذخیره شد.');
-        setTimeout(() => setSaveToast(null), 3000);
-      }
+      setGithubTokenInput('');
+      setGithubTestResult({ ok: true, message: 'تنظیمات و توکن گیت‌هاب با موفقیت در این مرورگر ذخیره شدند.' });
+      fetchGitHubStatus();
+      setSaveToast('تنظیمات گیت‌هاب با موفقیت ذخیره شد.');
+      setTimeout(() => setSaveToast(null), 3000);
     } catch (err: any) {
-      setGithubTestResult({ ok: false, message: 'خطا در ذخیره تنظیمات: ' + err.message });
+      setGithubTestResult({ ok: false, message: 'خطا در ذخیره تنظیمات: ' + (err.message || '') });
     }
   };
 
@@ -295,18 +318,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setIsTestingGitHub(true);
     setGithubTestResult(null);
     try {
-      const res = await fetch('/api/github/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: githubTokenInput.trim() || undefined,
-          repo: githubRepoInput.trim() || undefined
-        })
-      });
-      const data = await res.json();
-      setGithubTestResult({ ok: data.success, message: data.message });
+      const token = githubTokenInput.trim() || (githubConfig.hasToken ? getClientGitHubConfig().token : '');
+      const repo = githubRepoInput.trim() || 'pishgamandez/pishgaman';
+      const result = await testGitHubConnection(token, repo);
+      setGithubTestResult({ ok: result.ok, message: result.message });
+      if (result.ok) {
+        if (githubTokenInput.trim()) {
+          saveClientGitHubConfig({
+            token: githubTokenInput.trim(),
+            repo,
+            branch: githubBranchInput.trim() || 'main',
+            autoPush: githubAutoPushInput
+          });
+          setGithubTokenInput('');
+        }
+        fetchGitHubStatus();
+      }
     } catch (err: any) {
-      setGithubTestResult({ ok: false, message: 'خطا در تست اتصال: ' + err.message });
+      setGithubTestResult({ ok: false, message: 'خطا در تست اتصال: ' + (err.message || '') });
     } finally {
       setIsTestingGitHub(false);
     }
@@ -316,18 +345,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setIsPushingToGitHub(true);
     setGithubPushResult(null);
     try {
-      const res = await fetch('/api/github/push', { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
-        setGithubPushResult({ ok: true, message: data.message });
-        setSaveToast('تمام تغییرات با موفقیت به گیت‌هاب ارسال (Push) شدند.');
+      const ghConf = getClientGitHubConfig();
+      if (!ghConf.token) {
+        setGithubPushResult({ ok: false, message: 'لطفاً ابتدا کد توکن گیت‌هاب را در کادر زیر وارد و ذخیره فرمایید.' });
+        setIsPushingToGitHub(false);
+        return;
+      }
+      const res = await syncProductsDirectToGitHub(products, 'admin: manual sync catalogue to GitHub Pages');
+      if (res.ok) {
+        setGithubPushResult({ ok: true, message: 'تغییرات با موفقیت به مخزن گیت‌هاب ارسال (Push) شدند! ربات GitHub Actions در حال انتشار نسخه جدید است و تا ۳۰ ثانیه دیگر روی سایت زنده قرار می‌گیرد.' });
+        setSaveToast('تغییرات به گیت‌هاب ارسال شد و استقرار خودکار فعال گردید.');
         setTimeout(() => setSaveToast(null), 4000);
         fetchGitHubStatus();
       } else {
-        setGithubPushResult({ ok: false, message: data.message });
+        setGithubPushResult({ ok: false, message: res.message });
       }
     } catch (err: any) {
-      setGithubPushResult({ ok: false, message: 'خطا در ارسال: ' + err.message });
+      setGithubPushResult({ ok: false, message: 'خطا در ارسال: ' + (err.message || '') });
     } finally {
       setIsPushingToGitHub(false);
     }
@@ -389,10 +423,56 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         }
 
         const dimensions = `${origWidth} × ${origHeight} پیکسل`;
+        const safeSlotUrl = `./assets/images/products/${editingProduct.id}.jpg`;
 
-        // Direct upload to server to save permanent file in predefined product slot
+        // 1. Instantly set product image URL and meta
+        setEditingProduct(prev => prev ? {
+          ...prev,
+          imageUrl: safeSlotUrl
+        } : null);
+
+        setUploadedImageMeta({
+          name: file.name,
+          size: `${Math.round(file.size / 1024)} کیلوبایت`,
+          dimensions
+        });
+
+        // 2. Persist in React state and localStorage (immediately visible on device)
+        const updatedList = products.map(p => 
+          p.id === editingProduct.id ? { ...p, imageUrl: safeSlotUrl } : p
+        );
+        onUpdateProducts(updatedList);
         try {
-          const res = await fetch('/api/upload', {
+          localStorage.setItem('pishgaman_custom_products', JSON.stringify(updatedList));
+        } catch {}
+
+        // 3. Direct upload to GitHub REST API (works directly on GitHub Pages without backend)
+        const ghConf = getClientGitHubConfig();
+        if (ghConf.token) {
+          uploadImageDirectToGitHub(editingProduct.id, finalDataUrl, 'jpg')
+            .then(async imgRes => {
+              if (imgRes.ok) {
+                await syncProductsDirectToGitHub(updatedList, `admin: update packaging photo for ${editingProduct.nameFa}`);
+                setUploadSuccessMessage(`عکس محصول مستقیماً به مخزن گیت‌هاب ارسال (Push) شد و تا ۳۰ ثانیه دیگر روی سایت زنده قرار می‌گیرد.`);
+                fetchGitHubStatus();
+              } else {
+                setUploadErrorMessage(imgRes.message);
+              }
+            })
+            .catch(err => {
+              setUploadErrorMessage('خطا در ارسال تصویر به گیت‌هاب: ' + (err.message || ''));
+            })
+            .finally(() => {
+              setIsUploadingImage(false);
+            });
+        } else {
+          setUploadSuccessMessage(`عکس در مرورگر ثبت شد. برای ارسال خودکار به گیت‌هاب و سایت زنده، توکن گیت‌هاب را در تب «اتصال گیت‌هاب» وارد فرمایید.`);
+          setIsUploadingImage(false);
+        }
+
+        // 4. Silent mirror to local backend server if available
+        try {
+          fetch('/api/upload', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -400,74 +480,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               filename: file.name,
               productId: editingProduct.id
             })
-          });
-
-          if (res.ok) {
-            const result = await res.json();
-            if (result.url) {
-              const savedUrl = result.url;
-              setEditingProduct(prev => prev ? {
-                ...prev,
-                imageUrl: savedUrl
-              } : null);
-
-              setUploadedImageMeta({
-                name: file.name,
-                size: `${Math.round(file.size / 1024)} کیلوبایت`,
-                dimensions
-              });
-
-              // CRITICAL: Instantly persist into products state and sync to server
-              // so mobile uploads instantly sync across laptop, phone, and all browsers!
-              const updatedList = products.map(p => 
-                p.id === editingProduct.id ? { ...p, imageUrl: savedUrl } : p
-              );
-              onUpdateProducts(updatedList);
-              try {
-                localStorage.setItem('pishgaman_custom_products', JSON.stringify(updatedList));
-              } catch {}
-              
-              let pushStatusNote = '';
-              try {
-                const prodRes = await fetch('/api/products', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(updatedList)
-                });
-                if (prodRes.ok) {
-                  const prodData = await prodRes.json();
-                  if (prodData.gitPushed) {
-                    pushStatusNote = ' 🚀 مستقیماً به مخزن گیت‌هاب ارسال (Push) شد!';
-                  }
-                }
-              } catch (postErr) {
-                console.error('Failed to sync to /api/products:', postErr);
-              }
-
-              const successText = result.gitPushed
-                ? `عکس محصول در اسلات اختصاصی ذخیره و مستقیم به گیت‌هاب push شد!${pushStatusNote}`
-                : `عکس محصول در اسلات اختصاصی (public/assets/images/products/${editingProduct.id}) ذخیره و در پروژه ثبت شد.${pushStatusNote}`;
-
-              setUploadSuccessMessage(successText);
-              setIsUploadingImage(false);
-              return;
-            }
-          }
-        } catch (serverErr) {
-          console.warn('Direct upload server error:', serverErr);
-        }
-
-        // Offline / local fallback
-        setEditingProduct(prev => prev ? {
-          ...prev,
-          imageUrl: finalDataUrl
-        } : null);
-        const updatedList = products.map(p => 
-          p.id === editingProduct.id ? { ...p, imageUrl: finalDataUrl } : p
-        );
-        onUpdateProducts(updatedList);
-        setUploadSuccessMessage(`عکس روی محصول اعمال شد (${dimensions}).`);
-        setIsUploadingImage(false);
+          }).catch(() => {});
+          fetch('/api/products', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedList)
+          }).catch(() => {});
+        } catch {}
       };
 
       tempImg.onerror = () => {
